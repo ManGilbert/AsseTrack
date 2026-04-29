@@ -15,15 +15,15 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.urls import path
 from django.urls import path, include
-from django.http import HttpResponse
 
-def home(request):
-    return HttpResponse("Welcome to the AsseTrack API system!")
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
-    path('', home),
     path('admin/', admin.site.urls),
     path('api/', include('App.urls')),
-    path('App/', include('App.urls')),
+    path('', include('App.urls')),
+
 ]

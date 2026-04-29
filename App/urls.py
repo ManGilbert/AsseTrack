@@ -1,6 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
+from . import views
 
 from .views import (
     AuthViewSet,
@@ -28,4 +29,8 @@ urlpatterns = [
     path("docs/openapi.json", openapi_schema_view, name="openapi-schema"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("", include(router.urls)),
+    
+    
+    path('', views.index, name='index'),
+
 ]
