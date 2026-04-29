@@ -1,0 +1,154 @@
+.asse-login-shell {
+    background:
+        radial-gradient(circle at top left, rgba(114, 103, 239, 0.18), transparent 35%),
+        linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
+}
+
+.asse-search-box {
+    min-width: 240px;
+}
+
+.asse-card-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.asse-card-action .btn {
+    padding: 0.35rem 0.55rem;
+}
+
+.asse-user-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+.asse-user-meta .meta-title {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.asse-user-meta .meta-subtitle {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.asse-list-item {
+    padding: 0.875rem 1rem;
+    border: 1px solid #edf2f7;
+    border-radius: 0.75rem;
+    background: #fff;
+}
+
+.asse-list-item + .asse-list-item {
+    margin-top: 0.75rem;
+}
+
+.asse-empty-state {
+    padding: 1.5rem;
+    text-align: center;
+    color: #6b7280;
+}
+
+.asse-section-anchor {
+    scroll-margin-top: 120px;
+}
+
+.asse-detail-panel {
+    min-height: 240px;
+}
+
+.asse-detail-panel .timeline {
+    border-left: 2px solid #e5e7eb;
+    padding-left: 1rem;
+    margin-top: 1rem;
+}
+
+.asse-detail-panel .timeline-step {
+    position: relative;
+    padding-bottom: 1rem;
+}
+
+.asse-detail-panel .timeline-step::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #7267ef;
+    position: absolute;
+    left: -1.35rem;
+    top: 0.35rem;
+}
+
+.asse-badge-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.asse-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.asse-status-pending {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.asse-status-approved_by_branch,
+.asse-status-approved_by_head_office {
+    background: #eef2ff;
+    color: #4338ca;
+}
+
+.asse-status-resolved {
+    background: #ecfdf3;
+    color: #15803d;
+}
+
+.asse-status-rejected {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.asse-modal-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.modal {
+    z-index: 20000 !important;
+}
+
+.modal-backdrop {
+    z-index: 19990 !important;
+}
+
+.modal-dialog {
+    z-index: 20010 !important;
+}
+
+.modal-content {
+    position: relative;
+    z-index: 20020 !important;
+}
+
+.asse-table-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+@media (max-width: 991px) {
+    .asse-search-box {
+        min-width: 100%;
+        margin-bottom: 0.75rem;
+    }
+}

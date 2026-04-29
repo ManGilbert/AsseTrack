@@ -76,6 +76,7 @@ class Command(BaseCommand):
                     "department": "Operations",
                     "hire_date": date(2021, 3, 12),
                     "branch": None,
+                    "head_office": created_head_offices[0],
                 },
             },
             {
@@ -90,6 +91,7 @@ class Command(BaseCommand):
                     "department": "Administration",
                     "hire_date": date(2021, 7, 19),
                     "branch": created_branches[0],
+                    "head_office": None,
                 },
             },
             {
@@ -104,6 +106,7 @@ class Command(BaseCommand):
                     "department": "Administration",
                     "hire_date": date(2022, 1, 15),
                     "branch": created_branches[1],
+                    "head_office": None,
                 },
             },
             {
@@ -118,6 +121,7 @@ class Command(BaseCommand):
                     "department": "Administration",
                     "hire_date": date(2020, 11, 2),
                     "branch": created_branches[3],
+                    "head_office": None,
                 },
             },
             {
@@ -132,6 +136,7 @@ class Command(BaseCommand):
                     "department": "Finance",
                     "hire_date": date(2022, 5, 9),
                     "branch": created_branches[0],
+                    "head_office": None,
                 },
             },
             {
@@ -146,6 +151,7 @@ class Command(BaseCommand):
                     "department": "ICT",
                     "hire_date": date(2023, 2, 21),
                     "branch": created_branches[1],
+                    "head_office": None,
                 },
             },
             {
@@ -160,6 +166,7 @@ class Command(BaseCommand):
                     "department": "Procurement",
                     "hire_date": date(2021, 10, 4),
                     "branch": created_branches[2],
+                    "head_office": None,
                 },
             },
             {
@@ -174,6 +181,7 @@ class Command(BaseCommand):
                     "department": "Programs",
                     "hire_date": date(2020, 9, 28),
                     "branch": created_branches[3],
+                    "head_office": None,
                 },
             },
             {
@@ -188,6 +196,7 @@ class Command(BaseCommand):
                     "department": "Service Desk",
                     "hire_date": date(2024, 1, 17),
                     "branch": created_branches[4],
+                    "head_office": None,
                 },
             },
             {
@@ -202,6 +211,7 @@ class Command(BaseCommand):
                     "department": "Logistics",
                     "hire_date": date(2022, 8, 11),
                     "branch": created_branches[5],
+                    "head_office": None,
                 },
             },
         ]

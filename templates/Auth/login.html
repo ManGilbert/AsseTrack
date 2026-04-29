@@ -1,0 +1,246 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="AsseTrack organization login">
+    <meta name="author" content="AsseTrack">
+    <title>AsseTrack | Login</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'assets/images/favicon.ico' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'assets/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'assets/vendors/css/vendors.min.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'assets/css/theme.min.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'assets/css/assetrack.css' %}">
+</head>
+<body>
+    <main class="auth-minimal-wrapper asse-login-shell">
+        <div class="auth-minimal-inner">
+            <div class="minimal-card-wrapper">
+                <div class="card mb-4 mt-5 mx-4 mx-sm-0 position-relative">
+                    <div class="wd-50 bg-white p-2 rounded-circle shadow-lg position-absolute translate-middle top-0 start-50">
+                        <img src="{% static 'assets/images/logo-abbr.png' %}" alt="AsseTrack" class="img-fluid">
+                    </div>
+                    <div class="card-body p-sm-5">
+                        <div class="text-center mb-4">
+                            <span class="badge bg-soft-primary text-primary mb-3">AsseTracking Secure Access</span>
+                            <h2 class="fs-20 fw-bolder mb-2">Login to Your Account</h2>
+                            <p class="fs-12 fw-medium text-muted mb-0">Choose your role, then enter your own email and password to access the system.</p>
+                        </div>
+
+                        <form id="headOfficeLoginForm" class="w-100 mt-4 pt-2" method="post" action="{% url 'login' %}" novalidate>
+                            {% csrf_token %}
+                            <div class="mb-4">
+                                <label class="form-label">Access Role</label>
+                                <select class="form-control" name="role" id="loginRoleSelect" required>
+                                    <option value="" selected disabled>Select your role</option>
+                                    <option value="employee">Employee</option>
+                                    <option value="branch_manager">Branch Manager</option>
+                                    <option value="head_office_manager">Head Office Manager</option>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">Email</label>
+                                <input type="email" name="email" class="form-control" placeholder="Email address" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="password" class="form-control"  placeholder="Password" required>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="rememberMe">
+                                    <label class="custom-control-label c-pointer" for="rememberMe">Keep me signed in</label>
+                                </div>
+                                <a href="#" class="fs-11 text-primary">Forgot Password</a>
+                            </div>
+                            <div class="mt-4 d-grid">
+                                <button type="submit" class="btn btn-lg btn-primary" id="loginSubmitButton">Login</button>
+                            </div>
+                        </form>
+
+                        <div class="alert d-none mt-4" id="loginFeedback" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="{% static 'assets/vendors/js/vendors.min.js' %}"></script>
+    <script src="{% static 'assets/js/common-init.min.js' %}"></script>
+    <script src="{% static 'assets/js/theme-customizer-init.min.js' %}"></script>
+    <script>
+        (function () {
+            const ACCESS_KEY = "assetrack_access_token";
+            const REFRESH_KEY = "assetrack_refresh_token";
+            const USER_KEY = "assetrack_user";
+            const EXPIRES_AT_KEY = "assetrack_session_expires_at";
+            const roleRedirects = {
+                head_office_manager: "/head-office/",
+                branch_manager: "/",
+                employee: "/",
+            };
+
+            const form = document.getElementById("headOfficeLoginForm");
+            const feedback = document.getElementById("loginFeedback");
+            const submitButton = document.getElementById("loginSubmitButton");
+            const roleSelect = document.getElementById("loginRoleSelect");
+
+            if (!form || !feedback || !submitButton || !roleSelect) {
+                return;
+            }
+
+            function showFeedback(message, kind) {
+                feedback.textContent = message;
+                feedback.className = "alert mt-4 alert-" + kind;
+                feedback.classList.remove("d-none");
+            }
+
+            function hideFeedback() {
+                feedback.textContent = "";
+                feedback.className = "alert d-none mt-4";
+            }
+
+            function decodeJwtPayload(token) {
+                try {
+                    const parts = token.split(".");
+                    const payload = parts[1];
+                    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+                    return JSON.parse(atob(normalized));
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            function saveSession(session) {
+                localStorage.setItem(ACCESS_KEY, session.access);
+                localStorage.setItem(REFRESH_KEY, session.refresh);
+                localStorage.setItem(USER_KEY, JSON.stringify(session.user));
+                const payload = decodeJwtPayload(session.access);
+                if (payload && payload.exp) {
+                    localStorage.setItem(EXPIRES_AT_KEY, String(payload.exp * 1000));
+                }
+            }
+
+            function clearSession() {
+                localStorage.removeItem(ACCESS_KEY);
+                localStorage.removeItem(REFRESH_KEY);
+                localStorage.removeItem(USER_KEY);
+                localStorage.removeItem(EXPIRES_AT_KEY);
+            }
+
+            function getStoredUser() {
+                try {
+                    const raw = localStorage.getItem(USER_KEY);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            function isSessionValid() {
+                const token = localStorage.getItem(ACCESS_KEY);
+                const expiresAt = Number(localStorage.getItem(EXPIRES_AT_KEY) || 0);
+                return Boolean(token && expiresAt && Date.now() < expiresAt);
+            }
+
+            function syncRoleSelection() {
+                submitButton.textContent = roleSelect.value === "head_office_manager"
+                    ? "Login to Console"
+                    : "Login";
+            }
+
+            function redirectForUser(user) {
+                window.location.href = roleRedirects[user.role] || "/";
+            }
+
+            async function loginRequest(payload) {
+                const response = await fetch("/api/auth/login/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const contentType = response.headers.get("content-type") || "";
+                const data = contentType.includes("application/json")
+                    ? await response.json()
+                    : await response.text();
+
+                if (!response.ok) {
+                    if (data && typeof data === "object") {
+                        const message = data.detail || Object.values(data).flat().join(" ");
+                        throw new Error(message || "Incorrect email, password, or role. Please try again.");
+                    }
+                    throw new Error(data || "Incorrect email, password, or role. Please try again.");
+                }
+
+                return data;
+            }
+
+            if (window.location.search) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            if (isSessionValid()) {
+                const user = getStoredUser();
+                if (user && user.role) {
+                    redirectForUser(user);
+                }
+            } else {
+                clearSession();
+            }
+
+            roleSelect.addEventListener("change", syncRoleSelection);
+            syncRoleSelection();
+
+            form.addEventListener("submit", async function (event) {
+                event.preventDefault();
+                hideFeedback();
+
+                const formData = new FormData(form);
+                const role = String(formData.get("role") || "").trim();
+                const email = String(formData.get("email") || "").trim();
+                const password = String(formData.get("password") || "");
+
+                if (!role) {
+                    showFeedback("Please select your role before logging in.", "danger");
+                    roleSelect.focus();
+                    return;
+                }
+
+                if (!email || !password) {
+                    showFeedback("Please enter both email and password.", "danger");
+                    return;
+                }
+
+                submitButton.disabled = true;
+                submitButton.textContent = "Signing in...";
+
+                try {
+                    const session = await loginRequest({
+                        role: role,
+                        email: email,
+                        password: password,
+                    });
+                    saveSession(session);
+                    showFeedback("Login successful. Redirecting...", "success");
+                    window.setTimeout(function () {
+                        redirectForUser(session.user);
+                    }, 300);
+                } catch (error) {
+                    showFeedback(
+                        error.message || "Incorrect email, password, or role. Please try again.",
+                        "danger"
+                    );
+                } finally {
+                    submitButton.disabled = false;
+                    syncRoleSelection();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

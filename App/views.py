@@ -1,5 +1,7 @@
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render
+from django.shortcuts import render
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -71,6 +73,7 @@ class AuthViewSet(viewsets.ViewSet):
         Employee.objects.create(
             user=user,
             branch=validated.get("branch"),
+            head_office=validated.get("head_office"),
             first_name=validated["first_name"],
             last_name=validated["last_name"],
             phone=validated["phone"],
@@ -576,4 +579,40 @@ def swagger_ui_view(request):
 from django.shortcuts import render, redirect, get_object_or_404
 
 def index(request):
-    return render(request, 'index.html')
+    return render(request, "Index.html")
+
+
+def login_page(request):
+    return render(request, "Auth/login.html")
+
+
+def head_office_console(request):
+    pending_request_statuses = [
+        Request.Statuses.APPROVED_BY_BRANCH,
+        Request.Statuses.APPROVED_BY_HEAD_OFFICE,
+    ]
+    head_office_records = HeadOffice.objects.annotate(branch_count=Count("branches")).order_by("-created_at")
+    manager_records = (
+        Employee.objects.select_related("user", "head_office")
+        .filter(user__role=User.Roles.HEAD_OFFICE_MANAGER)
+        .order_by("-created_at")
+    )
+
+    return render(
+        request,
+        "HeadOfficeManager/dashboard.html",
+        {
+            "page_title": "Head Office Manager Console",
+            "current_app": "head_office",
+            "overview": {
+                "head_offices": HeadOffice.objects.count(),
+                "managers": Employee.objects.filter(user__role=User.Roles.HEAD_OFFICE_MANAGER).count(),
+                "branches": Branch.objects.count(),
+                "devices": Device.objects.count(),
+                "requests": Request.objects.count(),
+                "pending_requests": Request.objects.filter(status__in=pending_request_statuses).count(),
+            },
+            "head_office_records": head_office_records,
+            "manager_records": manager_records,
+        },
+    )

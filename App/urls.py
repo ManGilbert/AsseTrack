@@ -29,8 +29,4 @@ urlpatterns = [
     path("docs/openapi.json", openapi_schema_view, name="openapi-schema"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("", include(router.urls)),
-    
-    
-    path('', views.index, name='index'),
-
 ]

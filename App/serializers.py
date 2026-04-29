@@ -24,7 +24,16 @@ class SimpleEmployeeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Employee
-        fields = ["id", "full_name", "first_name", "last_name", "branch", "position", "department"]
+        fields = [
+            "id",
+            "full_name",
+            "first_name",
+            "last_name",
+            "branch",
+            "head_office",
+            "position",
+            "department",
+        ]
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -42,6 +51,7 @@ class UserSerializer(serializers.ModelSerializer):
             "id": employee.id,
             "full_name": employee.full_name,
             "branch_id": employee.branch_id,
+            "head_office_id": employee.head_office_id,
             "position": employee.position,
         }
 
@@ -58,6 +68,11 @@ class RegisterSerializer(serializers.Serializer):
     hire_date = serializers.DateField(required=False)
     branch = serializers.PrimaryKeyRelatedField(
         queryset=Branch.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+    head_office = serializers.PrimaryKeyRelatedField(
+        queryset=HeadOffice.objects.all(),
         allow_null=True,
         required=False,
     )
@@ -78,6 +93,10 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {field: "This field is required for registration." for field in missing_fields}
             )
+
+        if role == User.Roles.HEAD_OFFICE_MANAGER:
+            if not attrs.get("head_office"):
+                raise serializers.ValidationError({"head_office": "Head office is required for this role."})
 
         if role in [User.Roles.BRANCH_MANAGER, User.Roles.EMPLOYEE]:
             if not attrs.get("branch"):
@@ -163,6 +182,7 @@ class EmployeeWriteSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "branch",
+            "head_office",
             "first_name",
             "last_name",
             "phone",
@@ -174,14 +194,21 @@ class EmployeeWriteSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user_data = attrs.get("user", {})
-        role = user_data.get("role")
+        role = user_data.get("role", getattr(getattr(self.instance, "user", None), "role", None))
         branch = attrs.get("branch", getattr(self.instance, "branch", None))
+        head_office = attrs.get("head_office", getattr(self.instance, "head_office", None))
 
-        if role == User.Roles.HEAD_OFFICE_MANAGER and branch is not None:
-            raise serializers.ValidationError({"branch": "Head office managers cannot be attached to a branch."})
+        if role == User.Roles.HEAD_OFFICE_MANAGER:
+            if branch is not None:
+                raise serializers.ValidationError({"branch": "Head office managers cannot be attached to a branch."})
+            if head_office is None:
+                raise serializers.ValidationError({"head_office": "Head office is required for head office managers."})
 
-        if role in [User.Roles.BRANCH_MANAGER, User.Roles.EMPLOYEE] and branch is None:
-            raise serializers.ValidationError({"branch": "Branch is required for branch managers and employees."})
+        if role in [User.Roles.BRANCH_MANAGER, User.Roles.EMPLOYEE]:
+            if branch is None:
+                raise serializers.ValidationError({"branch": "Branch is required for branch managers and employees."})
+            if head_office is not None:
+                raise serializers.ValidationError({"head_office": "Head office should be empty for branch-linked users."})
 
         if self.instance is None:
             if "user" not in attrs:
@@ -196,6 +223,7 @@ class EmployeeWriteSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     branch_detail = SimpleBranchSerializer(source="branch", read_only=True)
+    head_office_detail = SimpleHeadOfficeSerializer(source="head_office", read_only=True)
     assigned_devices_count = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -205,6 +233,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "user",
             "branch",
             "branch_detail",
+            "head_office",
+            "head_office_detail",
             "first_name",
             "last_name",
             "full_name",

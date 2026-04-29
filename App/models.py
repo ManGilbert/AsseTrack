@@ -103,6 +103,13 @@ class Employee(models.Model):
         null=True,
         blank=True,
     )
+    head_office = models.ForeignKey(
+        HeadOffice,
+        on_delete=models.SET_NULL,
+        related_name="employees",
+        null=True,
+        blank=True,
+    )
     is_head_office = models.BooleanField(default=False)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
@@ -129,8 +136,17 @@ class Employee(models.Model):
         return f"{self.first_name} {self.last_name}".strip()
 
     def clean(self):
-        if self.user.role == User.Roles.HEAD_OFFICE_MANAGER and self.branch_id:
-            raise ValidationError("Head office managers cannot belong to a branch.")
+        if self.user.role == User.Roles.HEAD_OFFICE_MANAGER:
+            if self.branch_id:
+                raise ValidationError("Head office managers cannot belong to a branch.")
+            if not self.head_office_id:
+                raise ValidationError("Head office managers must be assigned to a head office.")
+
+        if self.user.role in [User.Roles.BRANCH_MANAGER, User.Roles.EMPLOYEE]:
+            if not self.branch_id:
+                raise ValidationError("Branch managers and employees must belong to a branch.")
+            if self.head_office_id:
+                raise ValidationError("Branch-linked users cannot be assigned directly to a head office.")
 
     def save(self, *args, **kwargs):
         self.is_head_office = self.user.role == User.Roles.HEAD_OFFICE_MANAGER

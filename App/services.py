@@ -202,6 +202,8 @@ class DeviceAssignmentService:
 
         if employee.user.role == User.Roles.HEAD_OFFICE_MANAGER:
             raise ValidationError("Devices cannot be assigned to a head office manager profile.")
+        if not employee.branch:
+            raise ValidationError("Devices can only be assigned to employees who belong to a branch.")
 
         assignment = DeviceAssignment.objects.create(
             device=device,
