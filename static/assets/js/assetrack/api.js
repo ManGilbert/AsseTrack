@@ -2,6 +2,43 @@ import { clearSession, getAccessToken, getRefreshToken, saveSession } from "./au
 
 const API_BASE = "/api";
 
+function collectErrorMessages(value) {
+    if (value == null) {
+        return [];
+    }
+
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return [String(value)];
+    }
+
+    if (Array.isArray(value)) {
+        return value.flatMap((item) => collectErrorMessages(item));
+    }
+
+    if (typeof value === "object") {
+        return Object.entries(value).flatMap(([key, nestedValue]) => {
+            const messages = collectErrorMessages(nestedValue);
+            if (!messages.length) {
+                return [];
+            }
+            return messages.map((message) => `${key}: ${message}`);
+        });
+    }
+
+    return [];
+}
+
+function formatErrorPayload(payload, status) {
+    if (typeof payload === "object" && payload !== null) {
+        const detailMessages = collectErrorMessages(payload.detail);
+        const payloadMessages = collectErrorMessages(payload);
+        const messages = detailMessages.length ? detailMessages : payloadMessages;
+        return messages.join(" ") || `Request failed with status ${status}.`;
+    }
+
+    return payload || `Request failed with status ${status}.`;
+}
+
 function buildHeaders({ authenticated = true, hasBody = false } = {}) {
     const headers = {};
 
@@ -24,11 +61,7 @@ async function parseResponse(response) {
     const payload = type.includes("application/json") ? await response.json() : await response.text();
 
     if (!response.ok) {
-        if (typeof payload === "object" && payload !== null) {
-            const message = payload.detail || Object.values(payload).flat().join(" ");
-            throw new Error(message || `Request failed with status ${response.status}.`);
-        }
-        throw new Error(payload || `Request failed with status ${response.status}.`);
+        throw new Error(formatErrorPayload(payload, response.status));
     }
 
     return payload;

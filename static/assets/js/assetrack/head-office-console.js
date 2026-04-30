@@ -5,6 +5,9 @@ const state = {
     currentUser: null,
     headOffices: [],
     headOfficePage: 1,
+    branchPage: 1,
+    devicePage: 1,
+    requestPage: 1,
     managers: [],
     branchManagers: [],
     branches: [],
@@ -29,6 +32,9 @@ const elements = {
     requestDetailPanel: document.getElementById("requestDetailPanel"),
     headOfficeActivityList: document.getElementById("headOfficeActivityList"),
     headOfficePagination: document.getElementById("headOfficePagination"),
+    branchPagination: document.getElementById("branchPagination"),
+    devicePagination: document.getElementById("devicePagination"),
+    requestPagination: document.getElementById("requestPagination"),
     headOfficeSearchInput: document.getElementById("headOfficeSearchInput"),
     managerSearchInput: document.getElementById("managerSearchInput"),
     branchSearchInput: document.getElementById("branchSearchInput"),
@@ -51,9 +57,22 @@ const elements = {
 
 const entityModalNode = document.getElementById("entityModal");
 const confirmModalNode = document.getElementById("confirmModal");
+
+function mountModalToBody(node) {
+    if (!node || node.parentElement === document.body) {
+        return node;
+    }
+    document.body.appendChild(node);
+    return node;
+}
+
+mountModalToBody(entityModalNode);
+mountModalToBody(confirmModalNode);
+
 const entityModal = entityModalNode ? new globalThis.bootstrap.Modal(entityModalNode) : null;
 const confirmModal = confirmModalNode ? new globalThis.bootstrap.Modal(confirmModalNode) : null;
 const HEAD_OFFICE_PAGE_SIZE = 4;
+const DASHBOARD_TABLE_PAGE_SIZE = 4;
 
 const avatarPool = [
     "/static/assets/images/avatar/2.png",
@@ -305,6 +324,123 @@ function renderHeadOfficePagination(totalItems, totalPages) {
     `;
 }
 
+function renderBranchPagination(totalItems, totalPages) {
+    if (!elements.branchPagination) {
+        return;
+    }
+
+    if (!totalItems) {
+        elements.branchPagination.innerHTML = `<li><a href="javascript:void(0);" class="active">0 Records</a></li>`;
+        return;
+    }
+
+    const previousDisabled = state.branchPage === 1 ? "disabled" : "";
+    const nextDisabled = state.branchPage === totalPages ? "disabled" : "";
+    const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+    elements.branchPagination.innerHTML = `
+        <li>
+            <a href="javascript:void(0);" data-branch-page="${state.branchPage - 1}" class="${previousDisabled}">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+        </li>
+        ${pages
+            .map(
+                (page) => `
+                    <li>
+                        <a href="javascript:void(0);" data-branch-page="${page}" class="${page === state.branchPage ? "active" : ""}">
+                            ${page}
+                        </a>
+                    </li>
+                `
+            )
+            .join("")}
+        <li>
+            <a href="javascript:void(0);" data-branch-page="${state.branchPage + 1}" class="${nextDisabled}">
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </li>
+    `;
+}
+
+function renderDevicePagination(totalItems, totalPages) {
+    if (!elements.devicePagination) {
+        return;
+    }
+
+    if (!totalItems) {
+        elements.devicePagination.innerHTML = `<li><a href="javascript:void(0);" class="active">0 Records</a></li>`;
+        return;
+    }
+
+    const previousDisabled = state.devicePage === 1 ? "disabled" : "";
+    const nextDisabled = state.devicePage === totalPages ? "disabled" : "";
+    const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+    elements.devicePagination.innerHTML = `
+        <li>
+            <a href="javascript:void(0);" data-device-page="${state.devicePage - 1}" class="${previousDisabled}">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+        </li>
+        ${pages
+            .map(
+                (page) => `
+                    <li>
+                        <a href="javascript:void(0);" data-device-page="${page}" class="${page === state.devicePage ? "active" : ""}">
+                            ${page}
+                        </a>
+                    </li>
+                `
+            )
+            .join("")}
+        <li>
+            <a href="javascript:void(0);" data-device-page="${state.devicePage + 1}" class="${nextDisabled}">
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </li>
+    `;
+}
+
+function renderRequestPagination(totalItems, totalPages) {
+    if (!elements.requestPagination) {
+        return;
+    }
+
+    if (!totalItems) {
+        elements.requestPagination.innerHTML = `<li><a href="javascript:void(0);" class="active">0 Records</a></li>`;
+        return;
+    }
+
+    const previousDisabled = state.requestPage === 1 ? "disabled" : "";
+    const nextDisabled = state.requestPage === totalPages ? "disabled" : "";
+    const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+    elements.requestPagination.innerHTML = `
+        <li>
+            <a href="javascript:void(0);" data-request-page="${state.requestPage - 1}" class="${previousDisabled}">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+        </li>
+        ${pages
+            .map(
+                (page) => `
+                    <li>
+                        <a href="javascript:void(0);" data-request-page="${page}" class="${page === state.requestPage ? "active" : ""}">
+                            ${page}
+                        </a>
+                    </li>
+                `
+            )
+            .join("")}
+        <li>
+            <a href="javascript:void(0);" data-request-page="${state.requestPage + 1}" class="${nextDisabled}">
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </li>
+    `;
+}
+
 function renderManagers() {
     const query = elements.managerSearchInput.value || "";
     const items = state.managers.filter((manager) =>
@@ -349,9 +485,13 @@ function renderBranches() {
             query
         )
     );
+    const totalPages = Math.max(1, Math.ceil(items.length / DASHBOARD_TABLE_PAGE_SIZE));
+    state.branchPage = Math.min(state.branchPage, totalPages);
+    const startIndex = (state.branchPage - 1) * DASHBOARD_TABLE_PAGE_SIZE;
+    const paginatedItems = items.slice(startIndex, startIndex + DASHBOARD_TABLE_PAGE_SIZE);
 
     elements.branchTableBody.innerHTML = items.length
-        ? items
+        ? paginatedItems
               .map(
                   (branch, index) => `
                     <tr>
@@ -375,6 +515,8 @@ function renderBranches() {
               )
               .join("")
         : `<tr><td colspan="5" class="asse-empty-state">No branches found.</td></tr>`;
+
+    renderBranchPagination(items.length, totalPages);
 }
 
 function renderDevices() {
@@ -385,9 +527,13 @@ function renderDevices() {
             query
         )
     );
+    const totalPages = Math.max(1, Math.ceil(items.length / DASHBOARD_TABLE_PAGE_SIZE));
+    state.devicePage = Math.min(state.devicePage, totalPages);
+    const startIndex = (state.devicePage - 1) * DASHBOARD_TABLE_PAGE_SIZE;
+    const paginatedItems = items.slice(startIndex, startIndex + DASHBOARD_TABLE_PAGE_SIZE);
 
     elements.deviceTableBody.innerHTML = items.length
-        ? items
+        ? paginatedItems
               .map(
                   (device, index) => `
                     <tr>
@@ -411,6 +557,8 @@ function renderDevices() {
               )
               .join("")
         : `<tr><td colspan="5" class="asse-empty-state">No devices found.</td></tr>`;
+
+    renderDevicePagination(items.length, totalPages);
 }
 
 function renderRequests() {
@@ -421,9 +569,13 @@ function renderRequests() {
             query
         )
     );
+    const totalPages = Math.max(1, Math.ceil(items.length / DASHBOARD_TABLE_PAGE_SIZE));
+    state.requestPage = Math.min(state.requestPage, totalPages);
+    const startIndex = (state.requestPage - 1) * DASHBOARD_TABLE_PAGE_SIZE;
+    const paginatedItems = items.slice(startIndex, startIndex + DASHBOARD_TABLE_PAGE_SIZE);
 
     elements.requestTableBody.innerHTML = items.length
-        ? items
+        ? paginatedItems
               .map(
                   (request, index) => `
                     <tr>
@@ -465,6 +617,8 @@ function renderRequests() {
               )
               .join("")
         : `<tr><td colspan="5" class="asse-empty-state">No requests found.</td></tr>`;
+
+    renderRequestPagination(items.length, totalPages);
 }
 
 function renderRequestDetail(requestId) {
@@ -988,6 +1142,15 @@ function wireSearch() {
                 if (input === elements.headOfficeSearchInput) {
                     state.headOfficePage = 1;
                 }
+                if (input === elements.branchSearchInput) {
+                    state.branchPage = 1;
+                }
+                if (input === elements.deviceSearchInput) {
+                    state.devicePage = 1;
+                }
+                if (input === elements.requestSearchInput) {
+                    state.requestPage = 1;
+                }
                 renderAll();
             })
         );
@@ -1008,6 +1171,54 @@ function wirePagination() {
 
         state.headOfficePage = requestedPage;
         renderHeadOffices();
+    });
+
+    elements.branchPagination?.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-branch-page]");
+        if (!link || link.classList.contains("disabled")) {
+            return;
+        }
+
+        event.preventDefault();
+        const requestedPage = Number(link.dataset.branchPage);
+        if (!Number.isFinite(requestedPage) || requestedPage < 1) {
+            return;
+        }
+
+        state.branchPage = requestedPage;
+        renderBranches();
+    });
+
+    elements.devicePagination?.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-device-page]");
+        if (!link || link.classList.contains("disabled")) {
+            return;
+        }
+
+        event.preventDefault();
+        const requestedPage = Number(link.dataset.devicePage);
+        if (!Number.isFinite(requestedPage) || requestedPage < 1) {
+            return;
+        }
+
+        state.devicePage = requestedPage;
+        renderDevices();
+    });
+
+    elements.requestPagination?.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-request-page]");
+        if (!link || link.classList.contains("disabled")) {
+            return;
+        }
+
+        event.preventDefault();
+        const requestedPage = Number(link.dataset.requestPage);
+        if (!Number.isFinite(requestedPage) || requestedPage < 1) {
+            return;
+        }
+
+        state.requestPage = requestedPage;
+        renderRequests();
     });
 }
 
