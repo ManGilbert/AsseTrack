@@ -59,7 +59,7 @@ class AccessService:
             return
         if AccessService.is_branch_manager(user):
             manager_branch = AccessService.manager_branch(user)
-            if device.branch_id != getattr(manager_branch, "id", None):
+            if device.branch_id is not None and device.branch_id != getattr(manager_branch, "id", None):
                 raise PermissionDenied("You can only manage devices in your branch.")
             return
 

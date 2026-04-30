@@ -1,7 +1,6 @@
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -249,14 +248,19 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         if AccessService.is_employee(request.user):
             return Response({"detail": "Employees cannot create devices."}, status=403)
-        serializer = self.get_serializer(data=request.data)
+
+        data = request.data.copy()
+        if AccessService.is_branch_manager(request.user):
+            data["branch"] = AccessService.manager_branch(request.user).id if AccessService.manager_branch(request.user) else None
+
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
 
         if AccessService.is_branch_manager(request.user):
             if payload["user"]["role"] != User.Roles.EMPLOYEE:
                 return Response({"detail": "Branch managers can only create employee accounts."}, status=403)
-            AccessService.ensure_branch_scope(request.user, payload["branch"])
+            payload["branch"] = AccessService.manager_branch(request.user)
 
         instance = EmployeeService.create(payload)
         return Response(EmployeeSerializer(instance).data, status=status.HTTP_201_CREATED)
@@ -315,7 +319,8 @@ class DeviceViewSet(viewsets.ModelViewSet):
         if AccessService.is_head_office_manager(user):
             pass
         elif AccessService.is_branch_manager(user):
-            queryset = queryset.filter(branch=AccessService.manager_branch(user))
+            manager_branch = AccessService.manager_branch(user)
+            queryset = queryset.filter(Q(branch=manager_branch) | Q(branch__isnull=True))
         else:
             employee = AccessService.employee_for_user(user)
             queryset = queryset.filter(assignments__employee=employee, assignments__returned_at__isnull=True)
@@ -614,5 +619,25 @@ def head_office_console(request):
             },
             "head_office_records": head_office_records,
             "manager_records": manager_records,
+        },
+    )
+
+
+def branch_manager_console(request):
+    # This page is protected on the client side using JWT session data stored in localStorage.
+    # The template initializes the branch manager console and the JS client enforces role access.
+    return render(
+        request,
+        "BranchManager/dashboard.html",
+        {
+            "page_title": "Branch Manager Console",
+            "current_app": "branch_manager",
+            "overview": {
+                "employees": 0,
+                "devices": 0,
+                "requests": 0,
+                "pending_requests": 0,
+            },
+            "branch_record": {"name": "Your Branch"},
         },
     )

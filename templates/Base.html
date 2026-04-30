@@ -41,26 +41,57 @@
             const body = document.body;
             const authRequired = body.dataset.authRequired === "true";
             const allowedRole = body.dataset.allowedRole;
-            if (!authRequired) return;
-
             const token = localStorage.getItem("assetrack_access_token");
             const userRaw = localStorage.getItem("assetrack_user");
             const expiresAtRaw = localStorage.getItem("assetrack_session_expires_at");
             const expiresAt = expiresAtRaw ? Number(expiresAtRaw) : 0;
             const user = userRaw ? JSON.parse(userRaw) : null;
 
-            if (!token || !user || !expiresAt || Date.now() >= expiresAt) {
+            function clearSession() {
                 localStorage.removeItem("assetrack_access_token");
                 localStorage.removeItem("assetrack_refresh_token");
                 localStorage.removeItem("assetrack_user");
                 localStorage.removeItem("assetrack_session_expires_at");
+            }
+
+            function updateRoleNav() {
+                const headOfficeNav = document.getElementById("headOfficeNav");
+                const branchManagerNav = document.getElementById("branchManagerNav");
+
+                if (!headOfficeNav || !branchManagerNav) {
+                    return;
+                }
+
+                headOfficeNav.style.display = "none";
+                branchManagerNav.style.display = "none";
+
+                if (user && user.role === "head_office_manager") {
+                    headOfficeNav.style.display = "block";
+                }
+
+                if (user && user.role === "branch_manager") {
+                    branchManagerNav.style.display = "block";
+                }
+            }
+
+            if (!authRequired) {
+                updateRoleNav();
+                return;
+            }
+
+            if (!token || !user || !expiresAt || Date.now() >= expiresAt) {
+                clearSession();
                 window.location.replace("/login/");
                 return;
             }
 
             if (allowedRole && user.role !== allowedRole) {
+                clearSession();
                 window.location.replace("/login/");
+                return;
             }
+
+            updateRoleNav();
         })();
     </script>
     <!--! ================================================================ !-->
@@ -91,7 +122,7 @@
                             <li class="nxl-item"><a class="nxl-link" href="{% url 'index' %}">Analytics</a></li>
                         </ul>
                     </li>
-                    <li class="nxl-item nxl-hasmenu">
+                    <li class="nxl-item nxl-hasmenu" id="headOfficeNav" style="display: none;">
                         <a href="javascript:void(0);" class="nxl-link">
                             <span class="nxl-micon"><i class="feather-briefcase"></i></span>
                             <span class="nxl-mtext">Head Office</span><span class="nxl-arrow"><i
@@ -104,6 +135,19 @@
                             <li class="nxl-item"><a class="nxl-link" href="{% url 'head-office-console' %}#branches">Branches</a></li>
                             <li class="nxl-item"><a class="nxl-link" href="{% url 'head-office-console' %}#devices">Devices</a></li>
                             <li class="nxl-item"><a class="nxl-link" href="{% url 'head-office-console' %}#requests">Requests</a></li>
+                        </ul>
+                    </li>
+                    <li class="nxl-item nxl-hasmenu" id="branchManagerNav" style="display: none;">
+                        <a href="javascript:void(0);" class="nxl-link">
+                            <span class="nxl-micon"><i class="feather-home"></i></span>
+                            <span class="nxl-mtext">Branch Manager</span><span class="nxl-arrow"><i
+                                    class="feather-chevron-right"></i></span>
+                        </a>
+                        <ul class="nxl-submenu">
+                            <li class="nxl-item"><a class="nxl-link" href="{% url 'branch-manager-console' %}#overview">Overview</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="{% url 'branch-manager-console' %}#employees">Employees</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="{% url 'branch-manager-console' %}#devices">Devices</a></li>
+                            <li class="nxl-item"><a class="nxl-link" href="{% url 'branch-manager-console' %}#requests">Requests</a></li>
                         </ul>
                     </li>
                     <li class="nxl-item">

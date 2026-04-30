@@ -251,6 +251,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 class DeviceSerializer(serializers.ModelSerializer):
     branch_detail = SimpleBranchSerializer(source="branch", read_only=True)
+    display_name = serializers.SerializerMethodField()
     current_assignment = serializers.SerializerMethodField()
 
     class Meta:
@@ -258,6 +259,7 @@ class DeviceSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "display_name",
             "device_type",
             "branch",
             "branch_detail",
@@ -269,6 +271,11 @@ class DeviceSerializer(serializers.ModelSerializer):
             "current_assignment",
             "created_at",
         ]
+
+    def get_display_name(self, obj):
+        if obj.serial_number:
+            return f"{obj.name} ({obj.serial_number})"
+        return obj.name
 
     def get_current_assignment(self, obj):
         assignment = obj.assignments.filter(returned_at__isnull=True).select_related("employee").first()

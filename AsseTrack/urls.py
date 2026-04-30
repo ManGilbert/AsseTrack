@@ -28,5 +28,6 @@ urlpatterns = [
     path('index/', app_views.index, name='index'),
     path('login/', app_views.login_page, name='login'),
     path('head-office/', app_views.head_office_console, name='head-office-console'),
+    path('branch-manager/', app_views.branch_manager_console, name='branch-manager-console'),
 
 ]

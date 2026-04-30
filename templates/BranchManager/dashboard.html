@@ -1,0 +1,280 @@
+{% extends 'Base.html' %}
+{% load static %}
+
+{% block title %}Branch Manager{% endblock %}
+
+{% block body_attrs %}data-auth-required="true" data-allowed-role="branch_manager"{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="{% static 'assets/css/assetrack.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="nxl-content">
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Branch Manager</h5>
+                <p class="mb-0 text-muted">Manage your branch employees, devices, and requests.</p>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'login' %}">Home</a></li>
+                <li class="breadcrumb-item">Branch Manager</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                <button class="btn btn-light-brand" id="refreshConsoleButton">
+                    <i class="feather-refresh-cw me-2"></i>
+                    Refresh Data
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-danger d-none" id="branchManagerConsoleFeedback" role="alert"></div>
+
+    <div class="main-content">
+        <div class="row">
+            <div class="col-xxl-3 col-md-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between mb-4">
+                            <div class="d-flex gap-4 align-items-center">
+                                <div class="avatar-text avatar-lg bg-gray-200">
+                                    <i class="feather-users"></i>
+                                </div>
+                                <div>
+                                    <div class="fs-4 fw-bold text-dark" id="employeeCount">{{ overview.employees }}</div>
+                                    <h3 class="fs-13 fw-semibold text-truncate-1-line">Employees</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xxl-3 col-md-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between mb-4">
+                            <div class="d-flex gap-4 align-items-center">
+                                <div class="avatar-text avatar-lg bg-gray-200">
+                                    <i class="feather-monitor"></i>
+                                </div>
+                                <div>
+                                    <div class="fs-4 fw-bold text-dark" id="deviceCount">{{ overview.devices }}</div>
+                                    <h3 class="fs-13 fw-semibold text-truncate-1-line">Devices</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xxl-3 col-md-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between mb-4">
+                            <div class="d-flex gap-4 align-items-center">
+                                <div class="avatar-text avatar-lg bg-gray-200">
+                                    <i class="feather-file-text"></i>
+                                </div>
+                                <div>
+                                    <div class="fs-4 fw-bold text-dark" id="requestCount">{{ overview.requests }}</div>
+                                    <h3 class="fs-13 fw-semibold text-truncate-1-line">Requests</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xxl-3 col-md-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between mb-4">
+                            <div class="d-flex gap-4 align-items-center">
+                                <div class="avatar-text avatar-lg bg-gray-200">
+                                    <i class="feather-loader"></i>
+                                </div>
+                                <div>
+                                    <div class="fs-4 fw-bold text-dark" id="pendingRequestCount">{{ overview.pending_requests }}</div>
+                                    <h3 class="fs-13 fw-semibold text-truncate-1-line">Pending Requests</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mt-1" id="branch-overview">
+            <div class="col-12">
+                <div class="card stretch stretch-full">
+                    <div class="card-header">
+                        <h5 class="card-title">Branch</h5>
+                        <span class="badge bg-gray-200 text-dark">{{ branch_record.name }}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0 text-muted">Branch manager users can only access employees, devices, and requests from the assigned branch.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mt-1" id="employees">
+            <div class="col-12">
+                <div class="card stretch stretch-full">
+                    <div class="card-header">
+                        <h5 class="card-title">Employees</h5>
+                        <div class="card-header-action">
+                            <div class="input-group input-group-sm me-3 asse-search-box">
+                                <span class="input-group-text"><i class="feather-search"></i></span>
+                                <input type="text" class="form-control" id="employeeSearchInput" placeholder="Search employees">
+                            </div>
+                            <button class="btn btn-sm btn-primary" id="createEmployeeButton">New Employee</button>
+                        </div>
+                    </div>
+                    <div class="card-body custom-card-action p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr class="border-b">
+                                        <th scope="row">Employee</th>
+                                        <th>Email</th>
+                                        <th>Position</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="employeeTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mt-1" id="devices">
+            <div class="col-12">
+                <div class="card stretch stretch-full">
+                    <div class="card-header">
+                        <h5 class="card-title">Devices</h5>
+                        <div class="card-header-action">
+                            <div class="input-group input-group-sm me-3 asse-search-box">
+                                <span class="input-group-text"><i class="feather-search"></i></span>
+                                <input type="text" class="form-control" id="deviceSearchInput" placeholder="Search devices">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body custom-card-action p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr class="border-b">
+                                        <th scope="row">Device</th>
+                                        <th>Serial</th>
+                                        <th>Status</th>
+                                        <th>Assigned To</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="deviceTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mt-1" id="requests">
+            <div class="col-xxl-8">
+                <div class="card stretch stretch-full">
+                    <div class="card-header">
+                        <h5 class="card-title">Requests</h5>
+                        <div class="card-header-action">
+                            <div class="input-group input-group-sm me-3 asse-search-box">
+                                <span class="input-group-text"><i class="feather-search"></i></span>
+                                <input type="text" class="form-control" id="requestSearchInput" placeholder="Search requests">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body custom-card-action p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr class="border-b">
+                                        <th scope="row">Employee</th>
+                                        <th>Device</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="requestTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <ul class="list-unstyled d-flex align-items-center gap-2 mb-0 pagination-common-style" id="requestPagination"></ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xxl-4 col-lg-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-header">
+                        <h5 class="card-title">Request Detail</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="requestDetailPanel" class="asse-detail-panel">
+                            <p class="text-muted mb-0">Select a request to inspect the timeline, branch review, and action state.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="entityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="entityModalTitle">Manage Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="entityForm">
+                <div class="modal-body">
+                    <div class="alert d-none" id="entityFormFeedback" role="alert"></div>
+                    <div class="row g-3" id="entityFormFields"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light-brand" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="entityFormSubmitButton">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert d-none" id="confirmFeedback" role="alert"></div>
+                <p class="mb-0" id="confirmMessage">Are you sure?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light-brand" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmActionButton">Yes, Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'assets/js/assetrack/branch-manager-console.js' %}"></script>
+{% endblock %}
