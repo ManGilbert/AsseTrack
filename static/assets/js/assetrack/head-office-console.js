@@ -783,6 +783,41 @@ function managerFormConfig(manager = null) {
     };
 }
 
+function branchManagerFormConfig(manager = null) {
+    return {
+        kind: manager ? "edit-branch-manager" : "create-branch-manager",
+        recordId: manager?.id,
+        title: manager ? "Update Branch Manager" : "Register Branch Manager",
+        submitLabel: manager ? "Update Branch Manager" : "Create Branch Manager",
+        fields: [
+            buildInputField({ name: "first_name", label: "First Name", value: manager?.first_name || "", required: true }),
+            buildInputField({ name: "last_name", label: "Last Name", value: manager?.last_name || "", required: true }),
+            buildInputField({ name: "email", label: "Email", value: manager?.user?.email || "", required: true }),
+            buildInputField({ name: "password", label: manager ? "New Password (optional)" : "Password", type: "password", value: "", required: !manager }),
+            buildInputField({ name: "phone", label: "Phone", value: manager?.phone || "", required: true }),
+            buildInputField({ name: "position", label: "Position", value: manager?.position || "", required: true }),
+            buildInputField({ name: "department", label: "Department", value: manager?.department || "", required: true }),
+            buildInputField({ name: "hire_date", label: "Hire Date", type: "date", value: manager?.hire_date || "", required: true }),
+            buildSelectField({
+                name: "branch",
+                label: "Branch",
+                value: manager?.branch || "",
+                required: true,
+                options: state.branches.map((branch) => ({ value: branch.id, label: branch.name })),
+            }),
+            buildSelectField({
+                name: "is_active",
+                label: "Account Status",
+                value: manager ? String(manager.is_active) : "true",
+                options: [
+                    { value: "true", label: "Active" },
+                    { value: "false", label: "Inactive" },
+                ],
+            }),
+        ],
+    };
+}
+
 function headOfficeFormConfig(office = null) {
     return {
         kind: office ? "edit-head-office" : "create-head-office",
@@ -927,6 +962,35 @@ async function submitEntityForm(event) {
                 user: userPayload,
                 branch: null,
                 head_office: Number(formData.get("head_office")),
+                first_name: formData.get("first_name"),
+                last_name: formData.get("last_name"),
+                phone: formData.get("phone"),
+                position: formData.get("position"),
+                department: formData.get("department"),
+                hire_date: formData.get("hire_date"),
+                is_active: formData.get("is_active") === "true",
+            };
+
+            if (state.activeForm.recordId) {
+                await apiRequest(`/employees/${state.activeForm.recordId}/`, { method: "PATCH", body: payload });
+            } else {
+                await apiRequest("/employees/", { method: "POST", body: payload });
+            }
+        }
+
+        if (state.activeForm.kind === "create-branch-manager" || state.activeForm.kind === "edit-branch-manager") {
+            const userPayload = {
+                email: formData.get("email"),
+                role: "branch_manager",
+                is_active: formData.get("is_active") === "true",
+            };
+            const password = formData.get("password");
+            if (password) userPayload.password = password;
+
+            const payload = {
+                user: userPayload,
+                branch: Number(formData.get("branch")),
+                head_office: null,
                 first_name: formData.get("first_name"),
                 last_name: formData.get("last_name"),
                 phone: formData.get("phone"),
@@ -1226,6 +1290,7 @@ function wireCreateButtons() {
     document.getElementById("createHeadOfficeButton")?.addEventListener("click", () => openFormModal(headOfficeFormConfig()));
     document.getElementById("createManagerButton")?.addEventListener("click", () => openFormModal(managerFormConfig()));
     document.getElementById("registerManagerButton")?.addEventListener("click", () => openFormModal(managerFormConfig()));
+    document.getElementById("createBranchManagerButton")?.addEventListener("click", () => openFormModal(branchManagerFormConfig()));
     document.getElementById("createBranchButton")?.addEventListener("click", () => openFormModal(branchFormConfig()));
     document.getElementById("createDeviceButton")?.addEventListener("click", () => openFormModal(deviceFormConfig()));
 }
