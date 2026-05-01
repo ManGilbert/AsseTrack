@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -38,6 +39,7 @@ class Command(BaseCommand):
     def _create_employee_profile(
         self,
         *,
+        encoded_password,
         email,
         role,
         first_name,
@@ -51,9 +53,9 @@ class Command(BaseCommand):
         is_staff=False,
         is_superuser=False,
     ):
-        user = User.objects.create_user(
+        user = User.objects.create(
             email=email,
-            password=DEFAULT_PASSWORD,
+            password=encoded_password,
             role=role,
             is_staff=is_staff,
             is_superuser=is_superuser,
@@ -74,8 +76,10 @@ class Command(BaseCommand):
         return employee
 
     def _seed_data(self):
+        encoded_password = make_password(DEFAULT_PASSWORD)
         head_office = HeadOffice.objects.create(name="Kigali Head Office")
         head_manager = self._create_employee_profile(
+            encoded_password=encoded_password,
             email="admin@assert.ac.rw",
             role=User.Roles.HEAD_OFFICE_MANAGER,
             first_name="Aline",
@@ -120,6 +124,7 @@ class Command(BaseCommand):
         for index, branch in enumerate(branches):
             first_name, last_name = manager_names[index]
             manager = self._create_employee_profile(
+                encoded_password=encoded_password,
                 email=f"{last_name.lower()}@asset.sc.rw",
                 role=User.Roles.BRANCH_MANAGER,
                 first_name=first_name,
@@ -207,8 +212,8 @@ class Command(BaseCommand):
             ("Rachel", "Niyibizi"),
             ("Serge", "Niyibikora"),
             ("Therese", "Niyigaba"),
-            ("Urban", "Niyitegeka"),
-            ("Valerie", "Nshimiyimana"),
+            ("Urban", "Niyonkuru"),
+            ("Valerie", "Nshimyumuremyi"),
             ("Wilson", "Nsengimana"),
             ("Yvette", "Nshuti"),
             ("Zacharie", "Ntambara"),
@@ -225,10 +230,10 @@ class Command(BaseCommand):
             ("Kellen", "Rugema"),
             ("Leon", "Ruhumuriza"),
             ("Mireille", "Rukazambuga"),
-            ("Norbert", "Rukundo"),
+            ("Norbert", "Ruzindana"),
             ("Olive", "Rumanyika"),
             ("Prosper", "Rutagengwa"),
-            ("Rebecca", "Rutayisire"),
+            ("Rebecca", "Rwabukumba"),
             ("Silas", "Ruterana"),
             ("Teta", "Sebahire"),
             ("Valens", "Sendegeya"),
@@ -246,6 +251,7 @@ class Command(BaseCommand):
                 first_name, last_name = employee_names[name_index]
                 employees.append(
                     self._create_employee_profile(
+                        encoded_password=encoded_password,
                         email=f"{last_name.lower()}@asset.sc.rw",
                         role=User.Roles.EMPLOYEE,
                         first_name=first_name,
