@@ -270,32 +270,14 @@ function renderRequests() {
 }
 
 function renderRequestPagination(totalItems, totalPages) {
-    if (!elements.requestPagination) return;
-
-    if (totalPages <= 1) {
-        elements.requestPagination.innerHTML = "";
-        return;
-    }
-
-    const pages = [];
-    for (let page = 1; page <= totalPages; page++) {
-        pages.push(`
-            <li class="page-item ${page === state.requestPage ? "active" : ""}">
-                <a class="page-link" href="#" data-request-page="${page}">${page}</a>
-            </li>
-        `);
-    }
-
-    elements.requestPagination.innerHTML = `
-        <nav aria-label="Request pagination">
-            <ul class="pagination justify-content-end mb-0">
-                ${pages.join("")}
-            </ul>
-        </nav>
-    `;
+    renderDashboardPagination(elements.requestPagination, "request", state.requestPage, totalItems, totalPages);
 }
 
 function renderSimplePagination(element, key, currentPage, totalItems, totalPages) {
+    renderDashboardPagination(element, key, currentPage, totalItems, totalPages);
+}
+
+function renderDashboardPagination(element, key, currentPage, totalItems, totalPages) {
     if (!element) return;
 
     if (!totalItems) {
@@ -308,13 +290,33 @@ function renderSimplePagination(element, key, currentPage, totalItems, totalPage
         return;
     }
 
+    const previousDisabled = currentPage === 1 ? "disabled" : "";
+    const nextDisabled = currentPage === totalPages ? "disabled" : "";
     element.innerHTML = Array.from({ length: totalPages }, (_, index) => index + 1)
-        .map((page) => `
-            <li>
-                <a href="javascript:void(0);" data-${key}-page="${page}" class="${page === currentPage ? "active" : ""}">${page}</a>
-            </li>
-        `)
+        .map(
+            (page) => `
+                <li>
+                    <a href="javascript:void(0);" data-${key}-page="${page}" class="${page === currentPage ? "active" : ""}">
+                        ${page}
+                    </a>
+                </li>
+            `
+        )
         .join("");
+
+    element.innerHTML = `
+        <li>
+            <a href="javascript:void(0);" data-${key}-page="${currentPage - 1}" class="${previousDisabled}">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+        </li>
+        ${element.innerHTML}
+        <li>
+            <a href="javascript:void(0);" data-${key}-page="${currentPage + 1}" class="${nextDisabled}">
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </li>
+    `;
 }
 
 function renderRequestDetail(requestId) {
@@ -665,17 +667,21 @@ function wireSearch() {
 function wirePagination() {
     elements.employeePagination?.addEventListener("click", (event) => {
         const link = event.target.closest("[data-employee-page]");
-        if (!link) return;
+        if (!link || link.classList.contains("disabled")) return;
         event.preventDefault();
-        state.employeePage = Number(link.dataset.employeePage);
+        const requestedPage = Number(link.dataset.employeePage);
+        if (!Number.isFinite(requestedPage) || requestedPage < 1) return;
+        state.employeePage = requestedPage;
         renderEmployees();
     });
 
     elements.devicePagination?.addEventListener("click", (event) => {
         const link = event.target.closest("[data-device-page]");
-        if (!link) return;
+        if (!link || link.classList.contains("disabled")) return;
         event.preventDefault();
-        state.devicePage = Number(link.dataset.devicePage);
+        const requestedPage = Number(link.dataset.devicePage);
+        if (!Number.isFinite(requestedPage) || requestedPage < 1) return;
+        state.devicePage = requestedPage;
         renderDevices();
     });
 

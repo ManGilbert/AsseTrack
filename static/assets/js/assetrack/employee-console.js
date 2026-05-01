@@ -37,6 +37,19 @@ const elements = {
 };
 
 const entityModalNode = document.getElementById("entityModal");
+const confirmModalNode = document.getElementById("confirmModal");
+
+function mountModalToBody(node) {
+    if (!node || node.parentElement === document.body) {
+        return node;
+    }
+    document.body.appendChild(node);
+    return node;
+}
+
+mountModalToBody(entityModalNode);
+mountModalToBody(confirmModalNode);
+
 const entityModal = entityModalNode ? new globalThis.bootstrap.Modal(entityModalNode) : null;
 
 function escapeHtml(value) {
@@ -106,9 +119,34 @@ function renderPagination(element, key, currentPage, totalItems, totalPages) {
         element.innerHTML = totalItems ? "" : `<li><a href="javascript:void(0);" class="active">0 Records</a></li>`;
         return;
     }
-    element.innerHTML = Array.from({ length: totalPages }, (_, index) => index + 1)
-        .map((page) => `<li><a href="javascript:void(0);" data-${key}-page="${page}" class="${page === currentPage ? "active" : ""}">${page}</a></li>`)
-        .join("");
+
+    const previousDisabled = currentPage === 1 ? "disabled" : "";
+    const nextDisabled = currentPage === totalPages ? "disabled" : "";
+    const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+    element.innerHTML = `
+        <li>
+            <a href="javascript:void(0);" data-${key}-page="${currentPage - 1}" class="${previousDisabled}">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+        </li>
+        ${pages
+            .map(
+                (page) => `
+                    <li>
+                        <a href="javascript:void(0);" data-${key}-page="${page}" class="${page === currentPage ? "active" : ""}">
+                            ${page}
+                        </a>
+                    </li>
+                `
+            )
+            .join("")}
+        <li>
+            <a href="javascript:void(0);" data-${key}-page="${currentPage + 1}" class="${nextDisabled}">
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </li>
+    `;
 }
 
 async function ensureEmployeeSession() {
@@ -214,6 +252,16 @@ function renderRequestDetail(requestId) {
     const request = state.requests.find((item) => item.id === requestId);
     if (!request) return;
 
+    const timelineSteps = [
+        { label: "Submitted", value: formatDateTime(request.created_at) },
+        { label: "Branch Review", value: request.approved_by_branch_at ? formatDateTime(request.approved_by_branch_at) : "Waiting" },
+        { label: "Head Office Review", value: request.approved_by_head_office_at ? formatDateTime(request.approved_by_head_office_at) : "Waiting" },
+        {
+            label: request.status === "rejected" ? "Rejected" : "Resolved",
+            value: request.rejected_at ? formatDateTime(request.rejected_at) : request.resolved_at ? formatDateTime(request.resolved_at) : "Waiting",
+        },
+    ];
+
     elements.requestDetailPanel.innerHTML = `
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
@@ -226,9 +274,21 @@ function renderRequestDetail(requestId) {
         <div class="progress mb-2" style="height: 8px;">
             <div class="progress-bar" style="width: ${request.progress_percentage || 0}%"></div>
         </div>
-        <div class="fs-12 text-muted">Progress: ${request.progress_percentage || 0}%</div>
-        ${request.rejection_reason ? `<div class="alert alert-danger py-2 mt-3">${escapeHtml(request.rejection_reason)}</div>` : ""}
-        ${request.resolution_notes ? `<div class="alert alert-success py-2 mt-3">${escapeHtml(request.resolution_notes)}</div>` : ""}
+        <div class="fs-12 text-muted mb-3">Progress: ${request.progress_percentage || 0}%</div>
+        ${request.rejection_reason ? `<div class="alert alert-danger py-2">${escapeHtml(request.rejection_reason)}</div>` : ""}
+        ${request.resolution_notes ? `<div class="alert alert-success py-2">${escapeHtml(request.resolution_notes)}</div>` : ""}
+        <div class="timeline">
+            ${timelineSteps
+                .map(
+                    (step) => `
+                        <div class="timeline-step">
+                            <div class="fw-semibold">${escapeHtml(step.label)}</div>
+                            <div class="fs-12 text-muted">${escapeHtml(step.value)}</div>
+                        </div>
+                    `
+                )
+                .join("")}
+        </div>
     `;
 }
 
@@ -334,17 +394,26 @@ function bindEvents() {
         const notificationPage = event.target.closest("[data-notification-page]");
         if (devicePage) {
             event.preventDefault();
-            state.devicePage = Number(devicePage.dataset.devicePage);
+            if (devicePage.classList.contains("disabled")) return;
+            const requestedPage = Number(devicePage.dataset.devicePage);
+            if (!Number.isFinite(requestedPage) || requestedPage < 1) return;
+            state.devicePage = requestedPage;
             renderDevices();
         }
         if (requestPage) {
             event.preventDefault();
-            state.requestPage = Number(requestPage.dataset.requestPage);
+            if (requestPage.classList.contains("disabled")) return;
+            const requestedPage = Number(requestPage.dataset.requestPage);
+            if (!Number.isFinite(requestedPage) || requestedPage < 1) return;
+            state.requestPage = requestedPage;
             renderRequests();
         }
         if (notificationPage) {
             event.preventDefault();
-            state.notificationPage = Number(notificationPage.dataset.notificationPage);
+            if (notificationPage.classList.contains("disabled")) return;
+            const requestedPage = Number(notificationPage.dataset.notificationPage);
+            if (!Number.isFinite(requestedPage) || requestedPage < 1) return;
+            state.notificationPage = requestedPage;
             renderNotifications();
         }
     });

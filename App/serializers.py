@@ -288,6 +288,16 @@ class DeviceSerializer(serializers.ModelSerializer):
 
     def get_current_assignments(self, obj):
         assignments = obj.assignments.filter(returned_at__isnull=True).select_related("employee")
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if user and getattr(user, "role", None) == User.Roles.BRANCH_MANAGER:
+            employee = getattr(user, "employee_profile", None)
+            assignments = assignments.filter(employee__branch_id=getattr(employee, "branch_id", None))
+        elif user and getattr(user, "role", None) == User.Roles.EMPLOYEE:
+            employee = getattr(user, "employee_profile", None)
+            assignments = assignments.filter(employee_id=getattr(employee, "id", None))
+
         return [
             {
                 "assignment_id": assignment.id,

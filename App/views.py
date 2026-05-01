@@ -49,6 +49,33 @@ from .services import (
 )
 
 
+def create_account_activity_notifications(actor_user, employee, title, message):
+    recipients = {employee.user}
+    actor_employee = AccessService.employee_for_user(actor_user)
+
+    if actor_user and actor_user.is_authenticated:
+        recipients.add(actor_user)
+
+    if employee.branch and employee.branch.manager:
+        recipients.add(employee.branch.manager.user)
+
+    if actor_employee and actor_employee.branch and actor_employee.branch.manager:
+        recipients.add(actor_employee.branch.manager.user)
+
+    recipients.update(
+        User.objects.filter(role=User.Roles.HEAD_OFFICE_MANAGER, is_active=True)
+    )
+
+    for recipient in recipients:
+        Notification.objects.create(
+            user=recipient,
+            notification_type=Notification.NotificationTypes.SYSTEM_UPDATE,
+            title=title,
+            message=message,
+            related_employee=employee,
+        )
+
+
 class AuthViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticatedAndActive]
 
@@ -71,7 +98,7 @@ class AuthViewSet(viewsets.ViewSet):
             is_staff=(role == User.Roles.HEAD_OFFICE_MANAGER),
         )
 
-        Employee.objects.create(
+        employee = Employee.objects.create(
             user=user,
             branch=validated.get("branch"),
             head_office=validated.get("head_office"),
@@ -81,6 +108,12 @@ class AuthViewSet(viewsets.ViewSet):
             position=validated["position"],
             department=validated["department"],
             hire_date=validated["hire_date"],
+        )
+        create_account_activity_notifications(
+            request.user if request.user.is_authenticated else user,
+            employee,
+            "Account Created",
+            f"Account created for {employee.full_name}.",
         )
 
         refresh = RefreshToken.for_user(user)
@@ -268,6 +301,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             payload["branch"] = AccessService.manager_branch(request.user)
 
         instance = EmployeeService.create(payload)
+        create_account_activity_notifications(
+            request.user,
+            instance,
+            "Account Created",
+            f"Account created for {instance.full_name}.",
+        )
         return Response(EmployeeSerializer(instance).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -285,12 +324,24 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             AccessService.ensure_branch_scope(request.user, target_branch)
 
         updated = EmployeeService.update(instance, payload)
+        create_account_activity_notifications(
+            request.user,
+            updated,
+            "Account Updated",
+            f"Account updated for {updated.full_name}.",
+        )
         return Response(EmployeeSerializer(updated).data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if AccessService.is_branch_manager(request.user) and instance.user.role != User.Roles.EMPLOYEE:
             return Response({"detail": "Branch managers can only delete employee accounts."}, status=403)
+        create_account_activity_notifications(
+            request.user,
+            instance,
+            "Account Removed",
+            f"Account removed for {instance.full_name}.",
+        )
         EmployeeService.delete(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -325,7 +376,11 @@ class DeviceViewSet(viewsets.ModelViewSet):
             pass
         elif AccessService.is_branch_manager(user):
             manager_branch = AccessService.manager_branch(user)
-            queryset = queryset.filter(Q(branch=manager_branch) | Q(assign_to_all_branches=True))
+            queryset = queryset.filter(
+                Q(branch=manager_branch)
+                | Q(assign_to_all_branches=True)
+                | Q(assignments__employee__branch=manager_branch, assignments__returned_at__isnull=True)
+            )
         else:
             employee = AccessService.employee_for_user(user)
             queryset = queryset.filter(assignments__employee=employee, assignments__returned_at__isnull=True)
