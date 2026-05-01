@@ -98,6 +98,14 @@ class BranchService:
     def create(data):
         manager = data.pop("manager", None)
         branch = Branch.objects.create(**data)
+        
+        # Auto-assign all existing devices that have assign_to_all_branches flag
+        all_branch_devices = Device.objects.filter(assign_to_all_branches=True)
+        for device in all_branch_devices:
+            if device.branch is None:
+                device.branch = branch
+                device.save(update_fields=["branch"])
+        
         if manager:
             BranchService.assign_manager(branch, manager)
         return branch
@@ -186,33 +194,37 @@ class DeviceService:
         instance.save()
         return instance
 
-    @staticmethod
-    def set_status(instance, status_value):
-        instance.status = status_value
-        instance.save(update_fields=["status"])
-        return instance
-
 
 class DeviceAssignmentService:
     @staticmethod
     @transaction.atomic
     def assign_device(device, employee):
-        if DeviceAssignment.objects.filter(device=device, returned_at__isnull=True).exists():
-            raise ValidationError("This device is already assigned to another employee.")
-
         if employee.user.role == User.Roles.HEAD_OFFICE_MANAGER:
             raise ValidationError("Devices cannot be assigned to a head office manager profile.")
         if not employee.branch:
             raise ValidationError("Devices can only be assigned to employees who belong to a branch.")
+
+        # Check if this employee already has this device assigned
+        if DeviceAssignment.objects.filter(device=device, employee=employee, returned_at__isnull=True).exists():
+            raise ValidationError("This employee already has this device assigned.")
 
         assignment = DeviceAssignment.objects.create(
             device=device,
             employee=employee,
             branch=employee.branch,
         )
-        device.branch = employee.branch
-        device.status = Device.Statuses.NOT_AVAILABLE
-        device.save(update_fields=["branch", "status"])
+        
+        # Create notification for the employee
+        from .models import Notification
+        Notification.objects.create(
+            user=employee.user,
+            notification_type=Notification.NotificationTypes.DEVICE_ASSIGNED,
+            title="Device Assigned",
+            message=f"Device {device.name} has been assigned to you.",
+            related_device=device,
+            related_employee=employee,
+        )
+        
         return assignment
 
     @staticmethod
@@ -223,8 +235,18 @@ class DeviceAssignmentService:
 
         assignment.mark_returned()
         assignment.save(update_fields=["returned_at"])
-        assignment.device.status = Device.Statuses.AVAILABLE
-        assignment.device.save(update_fields=["status"])
+        
+        # Create notification for the employee
+        from .models import Notification
+        Notification.objects.create(
+            user=assignment.employee.user,
+            notification_type=Notification.NotificationTypes.DEVICE_RETURNED,
+            title="Device Returned",
+            message=f"Device {assignment.device.name} has been returned.",
+            related_device=assignment.device,
+            related_employee=assignment.employee,
+        )
+        
         return assignment
 
 
@@ -243,11 +265,26 @@ class RequestService:
     @transaction.atomic
     def create_request(employee, device, issue_description):
         RequestService._ensure_device_belongs_to_employee(employee, device)
-        return Request.objects.create(
+        req = Request.objects.create(
             employee=employee,
             device=device,
             issue_description=issue_description,
         )
+        
+        # Create notification for the branch manager
+        from .models import Notification
+        if employee.branch and employee.branch.manager:
+            Notification.objects.create(
+                user=employee.branch.manager.user,
+                notification_type=Notification.NotificationTypes.REQUEST_CREATED,
+                title="New Device Request",
+                message=f"{employee.full_name} submitted a repair request for {device.name}.",
+                related_device=device,
+                related_employee=employee,
+                related_request=req,
+            )
+        
+        return req
 
     @staticmethod
     @transaction.atomic
@@ -263,6 +300,19 @@ class RequestService:
         instance.branch_manager = manager
         instance.approved_by_branch_at = timezone.now()
         instance.save(update_fields=["status", "branch_manager", "approved_by_branch_at", "updated_at"])
+        
+        # Create notification for the employee
+        from .models import Notification
+        Notification.objects.create(
+            user=instance.employee.user,
+            notification_type=Notification.NotificationTypes.REQUEST_APPROVED_BY_BRANCH,
+            title="Request Approved by Branch",
+            message=f"Your repair request for {instance.device.name} has been approved by branch manager.",
+            related_device=instance.device,
+            related_employee=instance.employee,
+            related_request=instance,
+        )
+        
         return instance
 
     @staticmethod
@@ -279,6 +329,19 @@ class RequestService:
         instance.save(
             update_fields=["status", "head_office_manager", "approved_by_head_office_at", "updated_at"]
         )
+        
+        # Create notification for the branch manager
+        from .models import Notification
+        if instance.branch_manager:
+            Notification.objects.create(
+                user=instance.branch_manager.user,
+                notification_type=Notification.NotificationTypes.REQUEST_APPROVED_BY_HEAD_OFFICE,
+                title="Request Approved by Head Office",
+                message=f"Request for {instance.device.name} approved by head office.",
+                related_device=instance.device,
+                related_request=instance,
+            )
+        
         return instance
 
     @staticmethod
@@ -308,6 +371,19 @@ class RequestService:
                 "updated_at",
             ]
         )
+        
+        # Create notification for the employee
+        from .models import Notification
+        Notification.objects.create(
+            user=instance.employee.user,
+            notification_type=Notification.NotificationTypes.REQUEST_REJECTED,
+            title="Request Rejected",
+            message=f"Your repair request for {instance.device.name} has been rejected.",
+            related_device=instance.device,
+            related_employee=instance.employee,
+            related_request=instance,
+        )
+        
         return instance
 
     @staticmethod
@@ -320,6 +396,19 @@ class RequestService:
         instance.resolution_notes = notes or instance.resolution_notes
         instance.resolved_at = timezone.now()
         instance.save(update_fields=["status", "resolution_notes", "resolved_at", "updated_at"])
+        
+        # Create notification for the employee
+        from .models import Notification
+        Notification.objects.create(
+            user=instance.employee.user,
+            notification_type=Notification.NotificationTypes.REQUEST_RESOLVED,
+            title="Request Resolved",
+            message=f"Your repair request for {instance.device.name} has been resolved.",
+            related_device=instance.device,
+            related_employee=instance.employee,
+            related_request=instance,
+        )
+        
         return instance
 
 

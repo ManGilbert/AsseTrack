@@ -10,6 +10,7 @@ from .views import (
     DeviceViewSet,
     EmployeeViewSet,
     HeadOfficeViewSet,
+    NotificationViewSet,
     RequestViewSet,
     openapi_schema_view,
     swagger_ui_view,
@@ -23,6 +24,7 @@ router.register(r"employees", EmployeeViewSet, basename="employee")
 router.register(r"devices", DeviceViewSet, basename="device")
 router.register(r"assignments", DeviceAssignmentViewSet, basename="assignment")
 router.register(r"requests", RequestViewSet, basename="request")
+router.register(r"notifications", NotificationViewSet, basename="notification")
 
 urlpatterns = [
     path("docs/", swagger_ui_view, name="swagger-ui"),

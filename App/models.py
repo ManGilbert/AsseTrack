@@ -157,10 +157,6 @@ class Employee(models.Model):
 
 
 class Device(models.Model):
-    class Statuses(models.TextChoices):
-        AVAILABLE = "available", "Available"
-        NOT_AVAILABLE = "not_available", "Not Available"
-
     name = models.CharField(max_length=255)
     device_type = models.CharField(max_length=100)
     branch = models.ForeignKey(
@@ -174,10 +170,9 @@ class Device(models.Model):
     brand = models.CharField(max_length=100, blank=True)
     model = models.CharField(max_length=100, blank=True)
     purchase_date = models.DateField(null=True, blank=True)
-    status = models.CharField(
-        max_length=20,
-        choices=Statuses.choices,
-        default=Statuses.AVAILABLE,
+    assign_to_all_branches = models.BooleanField(
+        default=False,
+        help_text="If True, this device is available to all branches in the system.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -211,13 +206,6 @@ class DeviceAssignment(models.Model):
 
     class Meta:
         ordering = ["-assigned_at"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["device"],
-                condition=Q(returned_at__isnull=True),
-                name="unique_active_device_assignment",
-            )
-        ]
 
     @property
     def is_active(self):
@@ -292,3 +280,64 @@ class Request(models.Model):
 
     def __str__(self):
         return f"Request #{self.pk} - {self.status}"
+
+
+class Notification(models.Model):
+    class NotificationTypes(models.TextChoices):
+        DEVICE_ASSIGNED = "device_assigned", "Device Assigned"
+        DEVICE_REASSIGNED = "device_reassigned", "Device Reassigned"
+        DEVICE_RETURNED = "device_returned", "Device Returned"
+        REQUEST_CREATED = "request_created", "Request Created"
+        REQUEST_APPROVED_BY_BRANCH = "request_approved_by_branch", "Request Approved by Branch"
+        REQUEST_APPROVED_BY_HEAD_OFFICE = "request_approved_by_head_office", "Request Approved by Head Office"
+        REQUEST_REJECTED = "request_rejected", "Request Rejected"
+        REQUEST_RESOLVED = "request_resolved", "Request Resolved"
+        SYSTEM_UPDATE = "system_update", "System Update"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    notification_type = models.CharField(
+        max_length=50,
+        choices=NotificationTypes.choices,
+        default=NotificationTypes.SYSTEM_UPDATE,
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    related_device = models.ForeignKey(
+        Device,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    related_employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_notifications",
+    )
+    related_request = models.ForeignKey(
+        Request,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def mark_as_read(self):
+        self.is_read = True
+        self.read_at = timezone.now()
+        self.save(update_fields=["is_read", "read_at"])
+
+    def __str__(self):
+        return f"{self.get_notification_type_display()} - {self.user.email}"

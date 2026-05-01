@@ -1,13 +1,14 @@
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Branch, Device, DeviceAssignment, Employee, HeadOffice, Request, User
+from .models import Branch, Device, DeviceAssignment, Employee, HeadOffice, Request, User, Notification
 from .openapi import build_openapi_schema
 from .permissions import (
     AssignmentAccessPermission,
@@ -30,6 +31,7 @@ from .serializers import (
     HeadOfficeSerializer,
     LoginSerializer,
     LogoutSerializer,
+    NotificationSerializer,
     RegisterSerializer,
     RequestCreateSerializer,
     RequestDecisionSerializer,
@@ -329,8 +331,6 @@ class DeviceViewSet(viewsets.ModelViewSet):
         branch_value = self.request.query_params.get("branch")
         device_type = self.request.query_params.get("device_type")
 
-        if status_value:
-            queryset = queryset.filter(status=status_value)
         if branch_value and AccessService.is_head_office_manager(user):
             queryset = queryset.filter(branch_id=branch_value)
         if device_type:
@@ -365,20 +365,6 @@ class DeviceViewSet(viewsets.ModelViewSet):
         if AccessService.is_employee(request.user):
             return Response({"detail": "Employees cannot delete devices."}, status=403)
         return super().destroy(request, *args, **kwargs)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsHeadOfficeOrBranchManager])
-    def mark_available(self, request, pk=None):
-        device = self.get_object()
-        if device.assignments.filter(returned_at__isnull=True).exists():
-            return Response({"detail": "Device cannot be marked available while assignment is active."}, status=400)
-        DeviceService.set_status(device, Device.Statuses.AVAILABLE)
-        return Response(self.get_serializer(device).data)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsHeadOfficeOrBranchManager])
-    def mark_not_available(self, request, pk=None):
-        device = self.get_object()
-        DeviceService.set_status(device, Device.Statuses.NOT_AVAILABLE)
-        return Response(self.get_serializer(device).data)
 
 
 class DeviceAssignmentViewSet(viewsets.ModelViewSet):
@@ -533,6 +519,56 @@ class RequestViewSet(viewsets.ModelViewSet):
                 "progress_percentage": req.progress(),
             }
         )
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticatedAndActive]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).select_related(
+            "related_device",
+            "related_employee",
+            "related_employee__user",
+            "related_request",
+        )
+
+    def create(self, request, *args, **kwargs):
+        return Response({"detail": "Notifications cannot be created directly."}, status=405)
+
+    def update(self, request, *args, **kwargs):
+        return Response({"detail": "Notifications cannot be edited directly."}, status=405)
+
+    def partial_update(self, request, *args, **kwargs):
+        return Response({"detail": "Notifications cannot be edited directly."}, status=405)
+
+    def destroy(self, request, *args, **kwargs):
+        notification = self.get_object()
+        if notification.user_id != request.user.id:
+            return Response({"detail": "You can only delete your own notifications."}, status=403)
+        notification.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
+    def mark_as_read(self, request, pk=None):
+        notification = self.get_object()
+        if notification.user_id != request.user.id:
+            return Response({"detail": "You can only update your own notifications."}, status=403)
+        notification.mark_as_read()
+        return Response(self.get_serializer(notification).data)
+
+    @action(detail=False, methods=["post"])
+    def mark_all_as_read(self, request):
+        Notification.objects.filter(user=request.user, is_read=False).update(
+            is_read=True,
+            read_at=timezone.now(),
+        )
+        return Response({"detail": "All notifications marked as read."})
+
+    @action(detail=False, methods=["get"])
+    def unread_count(self, request):
+        count = Notification.objects.filter(user=request.user, is_read=False).count()
+        return Response({"unread_count": count})
 
 
 def openapi_schema_view(request):

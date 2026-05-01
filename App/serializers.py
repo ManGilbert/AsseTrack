@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from .models import Branch, Device, DeviceAssignment, Employee, HeadOffice, Request, User
+from .models import Branch, Device, DeviceAssignment, Employee, HeadOffice, Request, User, Notification
 
 
 class SimpleHeadOfficeSerializer(serializers.ModelSerializer):
@@ -252,7 +252,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 class DeviceSerializer(serializers.ModelSerializer):
     branch_detail = SimpleBranchSerializer(source="branch", read_only=True)
     display_name = serializers.SerializerMethodField()
-    current_assignment = serializers.SerializerMethodField()
+    current_assignments = serializers.SerializerMethodField()
 
     class Meta:
         model = Device
@@ -267,8 +267,8 @@ class DeviceSerializer(serializers.ModelSerializer):
             "brand",
             "model",
             "purchase_date",
-            "status",
-            "current_assignment",
+            "assign_to_all_branches",
+            "current_assignments",
             "created_at",
         ]
 
@@ -277,16 +277,17 @@ class DeviceSerializer(serializers.ModelSerializer):
             return f"{obj.name} ({obj.serial_number})"
         return obj.name
 
-    def get_current_assignment(self, obj):
-        assignment = obj.assignments.filter(returned_at__isnull=True).select_related("employee").first()
-        if not assignment:
-            return None
-        return {
-            "assignment_id": assignment.id,
-            "employee_id": assignment.employee_id,
-            "employee_name": assignment.employee.full_name,
-            "assigned_at": assignment.assigned_at,
-        }
+    def get_current_assignments(self, obj):
+        assignments = obj.assignments.filter(returned_at__isnull=True).select_related("employee")
+        return [
+            {
+                "assignment_id": assignment.id,
+                "employee_id": assignment.employee_id,
+                "employee_name": assignment.employee.full_name,
+                "assigned_at": assignment.assigned_at,
+            }
+            for assignment in assignments
+        ]
 
 
 class DeviceAssignmentSerializer(serializers.ModelSerializer):
@@ -375,3 +376,34 @@ class RequestCreateSerializer(serializers.Serializer):
 class RequestDecisionSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    device_detail = DeviceSerializer(source="related_device", read_only=True)
+    employee_detail = EmployeeSerializer(source="related_employee", read_only=True)
+    request_detail = RequestSerializer(source="related_request", read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id",
+            "notification_type",
+            "title",
+            "message",
+            "is_read",
+            "device_detail",
+            "employee_detail",
+            "request_detail",
+            "created_at",
+            "read_at",
+        ]
+        read_only_fields = [
+            "notification_type",
+            "title",
+            "message",
+            "device_detail",
+            "employee_detail",
+            "request_detail",
+            "created_at",
+            "read_at",
+        ]

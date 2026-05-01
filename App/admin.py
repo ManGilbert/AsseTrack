@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     HeadOffice, User, Branch,
-    Employee, Device, DeviceAssignment, Request
+    Employee, Device, DeviceAssignment, Request, Notification
 )
 
 # =========================
@@ -66,9 +66,9 @@ class DeviceAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'name', 'device_type',
         'serial_number', 'brand',
-        'status', 'created_at'
+        'assign_to_all_branches', 'created_at'
     )
-    list_filter = ('status', 'device_type', 'brand')
+    list_filter = ('assign_to_all_branches', 'device_type', 'brand')
     search_fields = ('name', 'serial_number', 'brand', 'model')
     readonly_fields = ('created_at',)
 
@@ -113,3 +113,17 @@ class RequestAdmin(admin.ModelAdmin):
     def progress_percentage(self, obj):
         return f"{obj.progress()}%"
     progress_percentage.short_description = "Progress"
+
+
+# =========================
+# NOTIFICATION
+# =========================
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'user', 'notification_type',
+        'title', 'is_read', 'created_at'
+    )
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('user__email', 'title', 'message')
+    readonly_fields = ('created_at', 'read_at')

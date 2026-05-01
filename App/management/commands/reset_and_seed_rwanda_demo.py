@@ -259,7 +259,6 @@ class Command(BaseCommand):
                     brand=brand,
                     model=model,
                     purchase_date=purchase_date,
-                    status=Device.Statuses.AVAILABLE,
                 )
             )
 
@@ -292,11 +291,8 @@ class Command(BaseCommand):
                 returned_at = assigned_at + timedelta(days=7)
                 assignment.returned_at = returned_at
                 assignment.save(update_fields=["returned_at"])
-                created_devices[index].status = Device.Statuses.AVAILABLE
-            else:
-                created_devices[index].status = Device.Statuses.NOT_AVAILABLE
             created_devices[index].branch = created_employees[employee_index].branch
-            created_devices[index].save(update_fields=["status", "branch"])
+            created_devices[index].save(update_fields=["branch"])
             created_assignments.append(assignment)
 
         request_specs = [
