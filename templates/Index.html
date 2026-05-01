@@ -1,13 +1,19 @@
 {% extends 'Base.html' %}
-{% block title %}AsseTrack Home{% endblock %}
-{% block body_attrs %}data-auth-required="true" data-allowed-role="head_office_manager"{% endblock %}
+{% block title %}Dashboard{% endblock %}
+{% block body_attrs %}data-auth-required="true"{% endblock %}
+
+{% load static %}
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="{% static 'assets/css/assetrack.css' %}">
+{% endblock %}
 
 {% block content %}
 <div class="nxl-content">
     <div class="page-header">
         <div class="page-header-left d-flex align-items-center">
             <div class="page-header-title">
-                <h5 class="m-b-10">AsseTracking Platform</h5>
+                <h5 class="m-b-10">Project Remainders</h5>
+                <p class="text-muted mb-0">A personalized dashboard with only the items relevant to your account.</p>
             </div>
             <ul class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
@@ -17,41 +23,107 @@
     </div>
 
     <div class="main-content">
-        <div class="row">
-            <div class="col-xxl-4 col-md-6">
+        <div class="row g-4">
+            <div class="col-xxl-8">
                 <div class="card stretch stretch-full">
-                    <div class="card-body">
-                        <div class="mb-4">
-                            <span class="badge bg-soft-primary text-primary">Head Office Access</span>
+                    <div class="card-header">
+                        <h5 class="card-title">Project Remainders</h5>
+                        <div class="card-header-action">
+                            <div class="card-header-btn">
+                                <div data-bs-toggle="tooltip" title="Delete">
+                                    <a href="javascript:void(0);" class="avatar-text avatar-xs bg-danger" data-bs-toggle="remove"> </a>
+                                </div>
+                                <div data-bs-toggle="tooltip" title="Refresh">
+                                    <a href="javascript:void(0);" class="avatar-text avatar-xs bg-warning" data-bs-toggle="refresh"> </a>
+                                </div>
+                                <div data-bs-toggle="tooltip" title="Maximize/Minimize">
+                                    <a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"> </a>
+                                </div>
+                            </div>
+                            <div class="dropdown">
+                                <a href="javascript:void(0);" class="avatar-text avatar-sm" data-bs-toggle="dropdown" data-bs-offset="25, 25">
+                                    <div data-bs-toggle="tooltip" title="Options">
+                                        <i class="feather-more-vertical"></i>
+                                    </div>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-at-sign"></i>New</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-calendar"></i>Event</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-bell"></i>Snoozed</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-trash-2"></i>Deleted</a>
+                                    <div class="dropdown-divider"></div>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-settings"></i>Settings</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-life-buoy"></i>Tips & Tricks</a>
+                                </div>
+                            </div>
                         </div>
-                        <h3 class="mb-3">Head Office Manager Workspace</h3>
-                        <p class="text-muted">Manage head offices, branch structure, devices, and repair approvals directly from the browser using the Django templates frontend.</p>
-                        <div class="d-flex gap-2">
-                            <a href="{% url 'head-office-console' %}" class="btn btn-light-brand">Start your work</a>
+                    </div>
+                    <div class="card-body custom-card-action p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Remaining</th>
+                                        <th scope="col">Stage</th>
+                                        <th scope="col" class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="projectRemaindersTable"></tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer">
+                            <ul class="list-unstyled d-flex align-items-center gap-2 mb-0 pagination-common-style" id="projectRemaindersPagination"></ul>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-xxl-4 col-md-6">
+            <div class="col-xxl-4">
                 <div class="card stretch stretch-full">
-                    <div class="card-body">
-                        <h4 class="mb-3">Null</h4>
-                    </div>
-                </div>
-            </div>
-            <div class="col-xxl-4 col-md-12">
-                <div class="card stretch stretch-full">
-                    <div class="card-body">
-                        <h4 class="mb-3">Developer Shortcuts</h4>
-                        <div class="d-grid gap-2">
-                            <a href="{% url 'swagger-ui' %}" class="btn btn-light-brand">Open API Docs</a>
-                            <a href="/api/" class="btn btn-light-brand">Open API Root</a>
-                            <a href="{% url 'head-office-console' %}#requests" class="btn btn-light-brand">Jump to Requests</a>
+                    <div class="card-header">
+                        <h5 class="card-title">Social Statistics</h5>
+                        <div class="card-header-action">
+                            <div class="card-header-btn">
+                                <div data-bs-toggle="tooltip" title="Delete">
+                                    <a href="javascript:void(0);" class="avatar-text avatar-xs bg-danger" data-bs-toggle="remove"> </a>
+                                </div>
+                                <div data-bs-toggle="tooltip" title="Refresh">
+                                    <a href="javascript:void(0);" class="avatar-text avatar-xs bg-warning" data-bs-toggle="refresh"> </a>
+                                </div>
+                                <div data-bs-toggle="tooltip" title="Maximize/Minimize">
+                                    <a href="javascript:void(0);" class="avatar-text avatar-xs bg-success" data-bs-toggle="expand"> </a>
+                                </div>
+                            </div>
+                            <div class="dropdown">
+                                <a href="javascript:void(0);" class="avatar-text avatar-sm" data-bs-toggle="dropdown" data-bs-offset="25, 25">
+                                    <div data-bs-toggle="tooltip" title="Options">
+                                        <i class="feather-more-vertical"></i>
+                                    </div>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-at-sign"></i>New</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-calendar"></i>Event</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-bell"></i>Snoozed</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-trash-2"></i>Deleted</a>
+                                    <div class="dropdown-divider"></div>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-settings"></i>Settings</a>
+                                    <a href="javascript:void(0);" class="dropdown-item"><i class="feather-life-buoy"></i>Tips & Tricks</a>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                    <div class="card-body">
+                        <div id="social-radar-chart"></div>
+                    </div>
+                    <a href="javascript:void(0);" class="card-footer fs-11 fw-bold text-uppercase text-center">Explore Details</a>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'assets/js/assetrack/index-console.js' %}"></script>
 {% endblock %}

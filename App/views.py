@@ -1,3 +1,8 @@
+import csv
+import io
+import zipfile
+from xml.etree import ElementTree as ET
+
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
@@ -37,6 +42,7 @@ from .serializers import (
     RequestDecisionSerializer,
     RequestSerializer,
     UserSerializer,
+    UserUpdateSerializer,
 )
 from .services import (
     AccessService,
@@ -150,8 +156,13 @@ class AuthViewSet(viewsets.ViewSet):
         token.blacklist()
         return Response({"message": "Logout successful."}, status=status.HTTP_205_RESET_CONTENT)
 
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get", "patch"])
     def me(self, request):
+        if request.method == "PATCH":
+            serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(UserSerializer(request.user).data)
         return Response(UserSerializer(request.user).data)
 
 class HeadOfficeViewSet(viewsets.ModelViewSet):
@@ -426,6 +437,152 @@ class DeviceViewSet(viewsets.ModelViewSet):
         if AccessService.is_employee(request.user):
             return Response({"detail": "Employees cannot delete devices."}, status=403)
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsHeadOfficeManager])
+    def report(self, request):
+        devices = self.filter_queryset(self.get_queryset())
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = "attachment; filename=asse_track_device_report.csv"
+
+        writer = csv.writer(response)
+        writer.writerow([
+            "Device Name",
+            "Serial Number",
+            "Device Type",
+            "Brand",
+            "Model",
+            "Branch",
+            "Assigned Employee",
+            "Assigned At",
+            "Assignment Active",
+        ])
+
+        for device in devices:
+            assignment = next((a for a in device.assignments.all() if a.returned_at is None), None)
+            writer.writerow(
+                [
+                    device.name,
+                    device.serial_number,
+                    device.device_type,
+                    device.brand,
+                    device.model,
+                    device.branch.name if device.branch else "Head Office",
+                    assignment.employee.full_name if assignment else "",
+                    assignment.assigned_at.isoformat() if assignment else "",
+                    "Yes" if assignment else "No",
+                ]
+            )
+
+        return response
+
+    @action(detail=False, methods=["post"], permission_classes=[IsHeadOfficeManager])
+    def bulk_register(self, request):
+        upload_file = request.FILES.get("file")
+        if not upload_file:
+            return Response({"detail": "No file uploaded."}, status=400)
+
+        file_name = upload_file.name.lower()
+        if file_name.endswith(".csv"):
+            content = io.TextIOWrapper(upload_file.file, encoding="utf-8", errors="replace")
+            reader = csv.DictReader(content)
+            rows = [row for row in reader]
+        elif file_name.endswith(".xlsx"):
+            rows = self._parse_xlsx(upload_file)
+        else:
+            return Response({"detail": "Unsupported file format. Upload a CSV or XLSX file."}, status=400)
+
+        created = 0
+        skipped = 0
+        errors = []
+
+        for index, row in enumerate(rows, start=1):
+            if not row:
+                continue
+
+            serial_number = (row.get("serial_number") or row.get("Serial Number") or "").strip()
+            name = (row.get("name") or row.get("Device Name") or "").strip()
+            device_type = (row.get("device_type") or row.get("Device Type") or "").strip()
+            brand = (row.get("brand") or row.get("Brand") or "").strip()
+            model = (row.get("model") or row.get("Model") or "").strip()
+            purchase_date = (row.get("purchase_date") or row.get("Purchase Date") or "").strip()
+            branch_name = (row.get("branch") or row.get("Branch") or "").strip()
+            assign_to_all_branches = str(row.get("assign_to_all_branches") or row.get("Assign To All Branches") or "").strip().lower() in ["true", "1", "yes"]
+
+            if not serial_number or not name:
+                skipped += 1
+                errors.append(f"Row {index}: missing required device name or serial number.")
+                continue
+
+            if Device.objects.filter(serial_number=serial_number).exists():
+                skipped += 1
+                continue
+
+            branch = None
+            if branch_name:
+                branch = Branch.objects.filter(name__iexact=branch_name).first()
+
+            try:
+                device = Device.objects.create(
+                    name=name,
+                    device_type=device_type or "Unknown",
+                    serial_number=serial_number,
+                    brand=brand,
+                    model=model,
+                    purchase_date=purchase_date or None,
+                    branch=branch,
+                    assign_to_all_branches=assign_to_all_branches,
+                )
+                created += 1
+            except Exception as exc:
+                skipped += 1
+                errors.append(f"Row {index}: {str(exc)}")
+
+        return Response(
+            {
+                "created": created,
+                "skipped": skipped,
+                "errors": errors,
+            }
+        )
+
+    def _parse_xlsx(self, uploaded_file):
+        workbook = zipfile.ZipFile(uploaded_file)
+        shared_strings = []
+        if "xl/sharedStrings.xml" in workbook.namelist():
+            root = ET.fromstring(workbook.read("xl/sharedStrings.xml"))
+            namespace = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+            for si in root.findall(".//a:si", namespace):
+                texts = [t.text or "" for t in si.findall(".//a:t", namespace)]
+                shared_strings.append("".join(texts))
+
+        sheet_name = "xl/worksheets/sheet1.xml"
+        if sheet_name not in workbook.namelist():
+            raise ValueError("Workbook does not contain sheet1.xml.")
+
+        sheet = ET.fromstring(workbook.read(sheet_name))
+        namespace = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        rows = []
+        for row in sheet.findall(".//a:row", namespace):
+            values = []
+            for cell in row.findall("a:c", namespace):
+                cell_type = cell.get("t")
+                value_element = cell.find("a:v", namespace)
+                if value_element is None:
+                    values.append("")
+                    continue
+                raw = value_element.text or ""
+                if cell_type == "s":
+                    values.append(shared_strings[int(raw)])
+                else:
+                    values.append(raw)
+            rows.append(values)
+
+        if not rows:
+            return []
+
+        header = [str(header).strip().lower().replace(" ", "_") for header in rows[0]]
+        return [dict(zip(header, row)) for row in rows[1:]]
 
 
 class DeviceAssignmentViewSet(viewsets.ModelViewSet):
@@ -754,3 +911,19 @@ def employee_dashboard(request):
             "current_app": "employee",
         },
     )
+
+
+def profile_page(request):
+    return render(request, "Profile.html", {"page_title": "Profile Details", "current_app": "profile"})
+
+
+def account_settings_page(request):
+    return render(request, "AccountSettings.html", {"page_title": "Account Settings", "current_app": "account_settings"})
+
+
+def device_report_page(request):
+    return render(request, "HeadOfficeManager/device-report.html", {"page_title": "Device Report", "current_app": "device_report"})
+
+
+def register_devices_page(request):
+    return render(request, "HeadOfficeManager/register-devices.html", {"page_title": "Register Devices", "current_app": "register_devices"})

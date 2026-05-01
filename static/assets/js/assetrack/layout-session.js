@@ -32,6 +32,7 @@ function updateLayoutUser() {
     const emailNode = document.getElementById("layoutUserEmail");
     const roleNode = document.getElementById("layoutUserRole");
     const logoutLink = document.getElementById("layoutLogoutLink");
+    const apiDocsNav = document.getElementById("apiDocsNav");
 
     if (!nameNode || !emailNode || !roleNode || !logoutLink) {
         return;
@@ -45,12 +46,18 @@ function updateLayoutUser() {
             .replace(/\b\w/g, (letter) => letter.toUpperCase());
         logoutLink.querySelector("span").textContent = "Logout";
         logoutLink.href = roleHomeMap[user.role] || "/";
+        if (apiDocsNav) {
+            apiDocsNav.style.display = user.role === "head_office_manager" ? "block" : "none";
+        }
     } else {
         nameNode.textContent = "Guest User";
         emailNode.textContent = "guest@example.com";
         roleNode.textContent = "Not Signed In";
         logoutLink.querySelector("span").textContent = "Login";
         logoutLink.href = "/login/";
+        if (apiDocsNav) {
+            apiDocsNav.style.display = "none";
+        }
     }
     updateRoleNavigation();
 }

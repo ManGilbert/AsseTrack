@@ -58,6 +58,45 @@ class UserSerializer(serializers.ModelSerializer):
         }
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    current_password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=False, min_length=8)
+
+    class Meta:
+        model = User
+        fields = ["email", "current_password", "password"]
+
+    def validate_email(self, value):
+        user = self.instance
+        if User.objects.exclude(pk=user.pk).filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate(self, attrs):
+        password = attrs.get("password")
+        current_password = attrs.get("current_password")
+
+        if password and not current_password:
+            raise serializers.ValidationError({"current_password": "Current password is required to change password."})
+
+        if current_password and not self.instance.check_password(current_password):
+            raise serializers.ValidationError({"current_password": "Current password is incorrect."})
+
+        return attrs
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def update(self, instance, validated_data):
+        if "email" in validated_data:
+            instance.email = validated_data["email"]
+        if "password" in validated_data:
+            instance.set_password(validated_data["password"])
+        instance.save()
+        return instance
+
+
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8)

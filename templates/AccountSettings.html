@@ -1,0 +1,74 @@
+{% extends 'Base.html' %}
+{% block title %}Account Settings{% endblock %}
+{% block body_attrs %}data-auth-required="true"{% endblock %}
+
+{% load static %}
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="{% static 'assets/css/assetrack.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="nxl-content">
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Account Settings</h5>
+                <p class="text-muted mb-0">Update your email and change your password.</p>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
+                <li class="breadcrumb-item">Account Settings</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="row g-4">
+            <div class="col-xl-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-header">
+                        <h5 class="card-title">Email Address</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success d-none" id="accountEmailSuccess" role="alert"></div>
+                        <div class="alert alert-danger d-none" id="accountEmailError" role="alert"></div>
+                        <form id="accountEmailForm">
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="accountEmail" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Update Email</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-header">
+                        <h5 class="card-title">Change Password</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success d-none" id="accountPasswordSuccess" role="alert"></div>
+                        <div class="alert alert-danger d-none" id="accountPasswordError" role="alert"></div>
+                        <form id="accountPasswordForm">
+                            <div class="mb-3">
+                                <label class="form-label">Current Password</label>
+                                <input type="password" class="form-control" id="currentPassword" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">New Password</label>
+                                <input type="password" class="form-control" id="newPassword" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Change Password</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'assets/js/assetrack/account-settings.js' %}"></script>
+{% endblock %}
