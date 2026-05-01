@@ -244,7 +244,8 @@ def build_openapi_schema():
                         "brand": {"type": "string"},
                         "model": {"type": "string"},
                         "purchase_date": {"type": "string", "format": "date", "nullable": True},
-                        "status": {"type": "string", "enum": ["available", "not_available"]},
+                        "assign_to_all_branches": {"type": "boolean"},
+                        "assignment_scope": {"type": "string"},
                         "created_at": {"type": "string", "format": "date-time"},
                     },
                 },
@@ -600,10 +601,9 @@ def build_openapi_schema():
         "get": {
             "tags": ["Devices"],
             "summary": "List devices",
-            "description": "Supports filters: `status`, `branch`, `device_type`.",
+            "description": "Supports filters: `branch`, `device_type`.",
             "security": _bearer_security(),
             "parameters": [
-                {"name": "status", "in": "query", "schema": {"type": "string"}},
                 {"name": "branch", "in": "query", "schema": {"type": "integer"}},
                 {"name": "device_type", "in": "query", "schema": {"type": "string"}},
             ],
@@ -623,7 +623,7 @@ def build_openapi_schema():
                     "brand": "Dell",
                     "model": "Latitude 5440",
                     "purchase_date": "2025-02-15",
-                    "status": "available",
+                    "assign_to_all_branches": False,
                 },
             ),
             "responses": {
@@ -633,25 +633,6 @@ def build_openapi_schema():
         },
     }
     paths["/api/devices/{id}/"] = crud_detail("/api/devices/{id}/", "Devices", "Device")
-    paths["/api/devices/{id}/mark_available/"] = {
-        "post": {
-            "tags": ["Devices"],
-            "summary": "Mark device available",
-            "security": _bearer_security(),
-            "responses": {
-                "200": _response("Status updated.", {"$ref": "#/components/schemas/Device"}),
-                "400": _response("Cannot mark available while assignment is active."),
-            },
-        }
-    }
-    paths["/api/devices/{id}/mark_not_available/"] = {
-        "post": {
-            "tags": ["Devices"],
-            "summary": "Mark device not available",
-            "security": _bearer_security(),
-            "responses": {"200": _response("Status updated.", {"$ref": "#/components/schemas/Device"})},
-        }
-    }
 
     paths["/api/assignments/"] = {
         "get": {
@@ -792,4 +773,3 @@ def build_openapi_schema():
     }
 
     return schema
-

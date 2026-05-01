@@ -29,5 +29,6 @@ urlpatterns = [
     path('login/', app_views.login_page, name='login'),
     path('head-office/', app_views.head_office_console, name='head-office-console'),
     path('branch-manager/', app_views.branch_manager_console, name='branch-manager-console'),
+    path('employee/', app_views.employee_dashboard, name='employee-dashboard'),
 
 ]

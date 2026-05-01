@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from .models import Branch, Device, DeviceAssignment, Employee, HeadOffice, Request, User
+from .models import Branch, Device, DeviceAssignment, Employee, HeadOffice, Notification, Request, User
 
 
 class AccessService:
@@ -59,6 +59,8 @@ class AccessService:
             return
         if AccessService.is_branch_manager(user):
             manager_branch = AccessService.manager_branch(user)
+            if device.assign_to_all_branches:
+                return
             if device.branch_id is not None and device.branch_id != getattr(manager_branch, "id", None):
                 raise PermissionDenied("You can only manage devices in your branch.")
             return
@@ -95,16 +97,12 @@ class HeadOfficeService:
 
 class BranchService:
     @staticmethod
+    @transaction.atomic
     def create(data):
         manager = data.pop("manager", None)
         branch = Branch.objects.create(**data)
-        
-        # Auto-assign all existing devices that have assign_to_all_branches flag
-        all_branch_devices = Device.objects.filter(assign_to_all_branches=True)
-        for device in all_branch_devices:
-            if device.branch is None:
-                device.branch = branch
-                device.save(update_fields=["branch"])
+
+        Device.objects.filter(assign_to_all_branches=False).update(assign_to_all_branches=True, branch=None)
         
         if manager:
             BranchService.assign_manager(branch, manager)
@@ -185,10 +183,14 @@ class EmployeeService:
 class DeviceService:
     @staticmethod
     def create(data):
+        if data.get("assign_to_all_branches"):
+            data["branch"] = None
         return Device.objects.create(**data)
 
     @staticmethod
     def update(instance, data):
+        if data.get("assign_to_all_branches"):
+            data["branch"] = None
         for field, value in data.items():
             setattr(instance, field, value)
         instance.save()
@@ -200,9 +202,15 @@ class DeviceAssignmentService:
     @transaction.atomic
     def assign_device(device, employee):
         if employee.user.role == User.Roles.HEAD_OFFICE_MANAGER:
-            raise ValidationError("Devices cannot be assigned to a head office manager profile.")
-        if not employee.branch:
-            raise ValidationError("Devices can only be assigned to employees who belong to a branch.")
+            if not employee.head_office:
+                raise ValidationError("Head office managers must belong to a head office before device assignment.")
+            assignment_branch = None
+        else:
+            if not employee.branch:
+                raise ValidationError("Devices can only be assigned to branch users who belong to a branch.")
+            if not device.assign_to_all_branches and device.branch_id and device.branch_id != employee.branch_id:
+                raise ValidationError("This device is not assigned to the employee's branch.")
+            assignment_branch = employee.branch
 
         # Check if this employee already has this device assigned
         if DeviceAssignment.objects.filter(device=device, employee=employee, returned_at__isnull=True).exists():
@@ -211,11 +219,9 @@ class DeviceAssignmentService:
         assignment = DeviceAssignment.objects.create(
             device=device,
             employee=employee,
-            branch=employee.branch,
+            branch=assignment_branch,
         )
-        
-        # Create notification for the employee
-        from .models import Notification
+
         Notification.objects.create(
             user=employee.user,
             notification_type=Notification.NotificationTypes.DEVICE_ASSIGNED,
@@ -236,8 +242,6 @@ class DeviceAssignmentService:
         assignment.mark_returned()
         assignment.save(update_fields=["returned_at"])
         
-        # Create notification for the employee
-        from .models import Notification
         Notification.objects.create(
             user=assignment.employee.user,
             notification_type=Notification.NotificationTypes.DEVICE_RETURNED,
@@ -271,8 +275,6 @@ class RequestService:
             issue_description=issue_description,
         )
         
-        # Create notification for the branch manager
-        from .models import Notification
         if employee.branch and employee.branch.manager:
             Notification.objects.create(
                 user=employee.branch.manager.user,
@@ -283,7 +285,17 @@ class RequestService:
                 related_employee=employee,
                 related_request=req,
             )
-        
+        if employee.user.role == User.Roles.BRANCH_MANAGER:
+            Notification.objects.create(
+                user=employee.user,
+                notification_type=Notification.NotificationTypes.REQUEST_CREATED,
+                title="Repair Request Submitted",
+                message=f"Your repair request for {device.name} was submitted.",
+                related_device=device,
+                related_employee=employee,
+                related_request=req,
+            )
+
         return req
 
     @staticmethod
@@ -301,8 +313,6 @@ class RequestService:
         instance.approved_by_branch_at = timezone.now()
         instance.save(update_fields=["status", "branch_manager", "approved_by_branch_at", "updated_at"])
         
-        # Create notification for the employee
-        from .models import Notification
         Notification.objects.create(
             user=instance.employee.user,
             notification_type=Notification.NotificationTypes.REQUEST_APPROVED_BY_BRANCH,
@@ -330,8 +340,6 @@ class RequestService:
             update_fields=["status", "head_office_manager", "approved_by_head_office_at", "updated_at"]
         )
         
-        # Create notification for the branch manager
-        from .models import Notification
         if instance.branch_manager:
             Notification.objects.create(
                 user=instance.branch_manager.user,
@@ -372,8 +380,6 @@ class RequestService:
             ]
         )
         
-        # Create notification for the employee
-        from .models import Notification
         Notification.objects.create(
             user=instance.employee.user,
             notification_type=Notification.NotificationTypes.REQUEST_REJECTED,
@@ -397,8 +403,6 @@ class RequestService:
         instance.resolved_at = timezone.now()
         instance.save(update_fields=["status", "resolution_notes", "resolved_at", "updated_at"])
         
-        # Create notification for the employee
-        from .models import Notification
         Notification.objects.create(
             user=instance.employee.user,
             notification_type=Notification.NotificationTypes.REQUEST_RESOLVED,

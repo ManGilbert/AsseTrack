@@ -156,7 +156,7 @@ class HeadOfficeViewSet(viewsets.ModelViewSet):
     def devices(self, request, pk=None):
         head_office = self.get_object()
         devices = Device.objects.select_related("branch", "branch__head_office").filter(
-            branch__head_office=head_office
+            Q(assign_to_all_branches=True) | Q(branch__head_office=head_office) | Q(branch__isnull=True)
         )
         serializer = DeviceSerializer(devices, many=True)
         return Response(serializer.data)
@@ -221,7 +221,10 @@ class BranchViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def devices(self, request, pk=None):
         branch = self.get_object()
-        serializer = DeviceSerializer(branch.devices.select_related("branch", "branch__head_office").all(), many=True)
+        devices = Device.objects.select_related("branch", "branch__head_office").filter(
+            Q(branch=branch) | Q(assign_to_all_branches=True)
+        )
+        serializer = DeviceSerializer(devices.distinct(), many=True)
         return Response(serializer.data)
 
 
@@ -322,23 +325,24 @@ class DeviceViewSet(viewsets.ModelViewSet):
             pass
         elif AccessService.is_branch_manager(user):
             manager_branch = AccessService.manager_branch(user)
-            queryset = queryset.filter(Q(branch=manager_branch) | Q(branch__isnull=True))
+            queryset = queryset.filter(Q(branch=manager_branch) | Q(assign_to_all_branches=True))
         else:
             employee = AccessService.employee_for_user(user)
             queryset = queryset.filter(assignments__employee=employee, assignments__returned_at__isnull=True)
 
-        status_value = self.request.query_params.get("status")
         branch_value = self.request.query_params.get("branch")
         device_type = self.request.query_params.get("device_type")
 
         if branch_value and AccessService.is_head_office_manager(user):
-            queryset = queryset.filter(branch_id=branch_value)
+            queryset = queryset.filter(Q(branch_id=branch_value) | Q(assign_to_all_branches=True))
         if device_type:
             queryset = queryset.filter(device_type__iexact=device_type)
 
         return queryset.distinct()
 
     def create(self, request, *args, **kwargs):
+        if AccessService.is_employee(request.user):
+            return Response({"detail": "Employees cannot create devices."}, status=403)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
@@ -350,6 +354,8 @@ class DeviceViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(instance).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
+        if AccessService.is_employee(request.user):
+            return Response({"detail": "Employees cannot update devices."}, status=403)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=kwargs.get("partial", False))
         serializer.is_valid(raise_exception=True)
@@ -399,6 +405,12 @@ class DeviceAssignmentViewSet(viewsets.ModelViewSet):
         if AccessService.is_branch_manager(request.user):
             AccessService.ensure_branch_scope(request.user, employee.branch)
             AccessService.ensure_device_scope(request.user, device)
+        elif AccessService.is_head_office_manager(request.user):
+            actor = AccessService.employee_for_user(request.user)
+            if employee.user.role == User.Roles.HEAD_OFFICE_MANAGER and employee.pk != getattr(actor, "pk", None):
+                return Response({"detail": "Head office managers can only assign devices to themselves or branch managers."}, status=403)
+            if employee.user.role not in [User.Roles.HEAD_OFFICE_MANAGER, User.Roles.BRANCH_MANAGER]:
+                return Response({"detail": "Head office managers can assign devices to branch managers or themselves."}, status=403)
 
         assignment = DeviceAssignmentService.assign_device(device, employee)
         return Response(self.get_serializer(assignment).data, status=status.HTTP_201_CREATED)
@@ -452,12 +464,11 @@ class RequestViewSet(viewsets.ModelViewSet):
         return RequestSerializer
 
     def create(self, request, *args, **kwargs):
-        if not AccessService.is_employee(request.user):
-            return Response({"detail": "Only employees can create requests."}, status=403)
-
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         employee = AccessService.employee_for_user(request.user)
+        if not employee:
+            return Response({"detail": "An employee profile is required to create requests."}, status=403)
         req = RequestService.create_request(
             employee=employee,
             device=serializer.validated_data["device"],
@@ -675,5 +686,16 @@ def branch_manager_console(request):
                 "pending_requests": 0,
             },
             "branch_record": {"name": "Your Branch"},
+        },
+    )
+
+
+def employee_dashboard(request):
+    return render(
+        request,
+        "Employee/dashboard.html",
+        {
+            "page_title": "Employee Dashboard",
+            "current_app": "employee",
         },
     )

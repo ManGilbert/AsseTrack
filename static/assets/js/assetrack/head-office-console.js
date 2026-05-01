@@ -90,10 +90,9 @@ const statusClasses = {
     rejected: "asse-status-pill asse-status-rejected",
     active: "asse-status-pill asse-status-resolved",
     inactive: "asse-status-pill asse-status-rejected",
-    available: "asse-status-pill asse-status-resolved",
-    not_available: "asse-status-pill asse-status-pending",
     assigned: "asse-status-pill asse-status-approved_by_branch",
     unassigned: "asse-status-pill asse-status-pending",
+    shared: "asse-status-pill asse-status-approved_by_branch",
 };
 
 function escapeHtml(value) {
@@ -542,12 +541,13 @@ function renderDevices() {
                             subtitle: `${device.serial_number} • ${device.brand || "No brand"}`,
                             avatarIndex: index + 3,
                         })}</td>
-                        <td><span class="badge bg-gray-200 text-dark">${escapeHtml(device.branch_detail?.name || "Unassigned Branch")}</span></td>
+                        <td><span class="badge bg-gray-200 text-dark">${escapeHtml(device.assignment_scope || device.branch_detail?.name || "Head office only")}</span></td>
                         <td>${formatDate(device.purchase_date)}</td>
-                        <td>${statusBadge(device.status, humanizeStatus(device.status))}</td>
+                        <td>${statusBadge(device.assign_to_all_branches ? "shared" : "assigned", device.assign_to_all_branches ? "All Branches" : "Single Scope")}</td>
                         <td class="text-end">
                             <div class="asse-card-action justify-content-end">
                                 ${actionButton("view-device", device.id, "feather-eye")}
+                                ${actionButton("assign-device", device.id, "feather-arrow-right-circle")}
                                 ${actionButton("edit-device", device.id, "feather-edit-3")}
                                 ${actionButton("delete-device", device.id, "feather-trash-2")}
                             </div>
@@ -875,23 +875,23 @@ function deviceFormConfig(device = null) {
             buildInputField({ name: "device_type", label: "Device Type", value: device?.device_type || "", required: true }),
             buildSelectField({
                 name: "branch",
-                label: "Branch",
+                label: "Single Branch",
                 value: device?.branch || "",
                 options: state.branches.map((branch) => ({ value: branch.id, label: branch.name })),
+            }),
+            buildSelectField({
+                name: "assign_to_all_branches",
+                label: "Assignment Scope",
+                value: device?.assign_to_all_branches ? "true" : "false",
+                options: [
+                    { value: "false", label: "Single branch or head office" },
+                    { value: "true", label: "All branches and head office" },
+                ],
             }),
             buildInputField({ name: "serial_number", label: "Serial Number", value: device?.serial_number || "", required: true }),
             buildInputField({ name: "brand", label: "Brand", value: device?.brand || "" }),
             buildInputField({ name: "model", label: "Model", value: device?.model || "" }),
             buildInputField({ name: "purchase_date", label: "Purchase Date", type: "date", value: device?.purchase_date || "" }),
-            buildSelectField({
-                name: "status",
-                label: "Status",
-                value: device?.status || "available",
-                options: [
-                    { value: "available", label: "Available" },
-                    { value: "not_available", label: "Not Available" },
-                ],
-            }),
         ],
     };
 }
@@ -926,6 +926,32 @@ function requestActionFormConfig(request, action) {
                 <textarea class="form-control" name="notes" rows="4" required placeholder="Describe how the issue was resolved."></textarea>
             </div>
             `,
+        ],
+    };
+}
+
+function assignDeviceFormConfig(deviceId) {
+    const currentManagerId = state.currentUser?.employee?.id;
+    const assignees = [
+        ...state.branchManagers,
+        ...state.managers.filter((manager) => manager.id === currentManagerId),
+    ];
+
+    return {
+        kind: "assign-device",
+        recordId: deviceId,
+        title: "Assign Device",
+        submitLabel: "Assign Device",
+        fields: [
+            buildSelectField({
+                name: "employee",
+                label: "Assign To",
+                required: true,
+                options: assignees.map((employee) => ({
+                    value: employee.id,
+                    label: `${employee.full_name} (${employee.user.email})`,
+                })),
+            }),
         ],
     };
 }
@@ -1035,7 +1061,7 @@ async function submitEntityForm(event) {
                 brand: formData.get("brand"),
                 model: formData.get("model"),
                 purchase_date: formData.get("purchase_date") || null,
-                status: formData.get("status"),
+                assign_to_all_branches: formData.get("assign_to_all_branches") === "true",
             };
 
             if (state.activeForm.recordId) {
@@ -1043,6 +1069,16 @@ async function submitEntityForm(event) {
             } else {
                 await apiRequest("/devices/", { method: "POST", body: payload });
             }
+        }
+
+        if (state.activeForm.kind === "assign-device") {
+            await apiRequest("/assignments/", {
+                method: "POST",
+                body: {
+                    device: state.activeForm.recordId,
+                    employee: Number(formData.get("employee")),
+                },
+            });
         }
 
         if (state.activeForm.kind === "reject-request") {
@@ -1154,10 +1190,13 @@ function bindActionDelegation() {
             openViewModal("Device Details", [
                 { label: "Device", value: device.name },
                 { label: "Serial Number", value: device.serial_number },
-                { label: "Branch", value: device.branch_detail?.name || "Unassigned" },
-                { label: "Status", value: humanizeStatus(device.status) },
+                { label: "Scope", value: device.assignment_scope || device.branch_detail?.name || "Head office only" },
+                { label: "Assigned To", value: (device.current_assignments || []).map((assignment) => assignment.employee_name).join(", ") || "Unassigned" },
                 { label: "Model", value: device.model || "N/A" },
             ]);
+        }
+        if (action === "assign-device") {
+            openFormModal(assignDeviceFormConfig(id));
         }
         if (action === "edit-device") {
             openFormModal(deviceFormConfig(state.devices.find((item) => item.id === id)));

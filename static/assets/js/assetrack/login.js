@@ -8,8 +8,8 @@ const roleSelect = document.getElementById("loginRoleSelect");
 
 const roleRedirects = {
     head_office_manager: "/head-office/",
-    branch_manager: "/",
-    employee: "/",
+    branch_manager: "/branch-manager/",
+    employee: "/employee/",
 };
 
 if (window.location.search) {

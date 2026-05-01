@@ -51,7 +51,9 @@ class UserSerializer(serializers.ModelSerializer):
             "id": employee.id,
             "full_name": employee.full_name,
             "branch_id": employee.branch_id,
+            "branch_name": employee.branch.name if employee.branch_id else None,
             "head_office_id": employee.head_office_id,
+            "head_office_name": employee.head_office.name if employee.head_office_id else None,
             "position": employee.position,
         }
 
@@ -252,6 +254,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 class DeviceSerializer(serializers.ModelSerializer):
     branch_detail = SimpleBranchSerializer(source="branch", read_only=True)
     display_name = serializers.SerializerMethodField()
+    assignment_scope = serializers.SerializerMethodField()
     current_assignments = serializers.SerializerMethodField()
 
     class Meta:
@@ -263,6 +266,7 @@ class DeviceSerializer(serializers.ModelSerializer):
             "device_type",
             "branch",
             "branch_detail",
+            "assignment_scope",
             "serial_number",
             "brand",
             "model",
@@ -276,6 +280,11 @@ class DeviceSerializer(serializers.ModelSerializer):
         if obj.serial_number:
             return f"{obj.name} ({obj.serial_number})"
         return obj.name
+
+    def get_assignment_scope(self, obj):
+        if obj.assign_to_all_branches:
+            return "All branches and head office"
+        return obj.branch.name if obj.branch_id else "Head office only"
 
     def get_current_assignments(self, obj):
         assignments = obj.assignments.filter(returned_at__isnull=True).select_related("employee")

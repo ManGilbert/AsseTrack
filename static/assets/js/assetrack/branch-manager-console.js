@@ -8,6 +8,8 @@ const state = {
     requests: [],
     activeForm: null,
     confirmAction: null,
+    employeePage: 1,
+    devicePage: 1,
     requestPage: 1,
 };
 
@@ -20,6 +22,8 @@ const elements = {
     deviceTableBody: document.getElementById("deviceTableBody"),
     requestTableBody: document.getElementById("requestTableBody"),
     requestDetailPanel: document.getElementById("requestDetailPanel"),
+    employeePagination: document.getElementById("employeePagination"),
+    devicePagination: document.getElementById("devicePagination"),
     requestPagination: document.getElementById("requestPagination"),
     employeeSearchInput: document.getElementById("employeeSearchInput"),
     deviceSearchInput: document.getElementById("deviceSearchInput"),
@@ -60,9 +64,9 @@ const statusClasses = {
     approved_by_head_office: "asse-status-pill asse-status-approved_by_head_office",
     resolved: "asse-status-pill asse-status-resolved",
     rejected: "asse-status-pill asse-status-rejected",
-    available: "asse-status-pill asse-status-resolved",
-    not_available: "asse-status-pill asse-status-pending",
     assigned: "asse-status-pill asse-status-approved_by_branch",
+    shared: "asse-status-pill asse-status-approved_by_branch",
+    branch: "asse-status-pill asse-status-resolved",
 };
 
 function escapeHtml(value) {
@@ -159,8 +163,13 @@ function renderEmployees() {
         )
     );
 
+    const totalPages = Math.max(1, Math.ceil(items.length / DASHBOARD_TABLE_PAGE_SIZE));
+    state.employeePage = Math.min(state.employeePage, totalPages);
+    const startIndex = (state.employeePage - 1) * DASHBOARD_TABLE_PAGE_SIZE;
+    const paginatedItems = items.slice(startIndex, startIndex + DASHBOARD_TABLE_PAGE_SIZE);
+
     elements.employeeTableBody.innerHTML = items.length
-        ? items
+        ? paginatedItems
               .map(
                   (employee) => `
                     <tr>
@@ -178,6 +187,8 @@ function renderEmployees() {
               )
               .join("")
         : `<tr><td colspan="5" class="asse-empty-state">No employees found.</td></tr>`;
+
+    renderSimplePagination(elements.employeePagination, "employee", state.employeePage, items.length, totalPages);
 }
 
 function renderDevices() {
@@ -189,19 +200,25 @@ function renderDevices() {
         )
     );
 
+    const totalPages = Math.max(1, Math.ceil(items.length / DASHBOARD_TABLE_PAGE_SIZE));
+    state.devicePage = Math.min(state.devicePage, totalPages);
+    const startIndex = (state.devicePage - 1) * DASHBOARD_TABLE_PAGE_SIZE;
+    const paginatedItems = items.slice(startIndex, startIndex + DASHBOARD_TABLE_PAGE_SIZE);
+
     elements.deviceTableBody.innerHTML = items.length
-        ? items
+        ? paginatedItems
               .map(
                   (device) => `
                     <tr>
                         <td>${escapeHtml(device.serial_number ? `${device.name} (${device.serial_number})` : device.name || "-")}</td>
+                        <td>${escapeHtml(device.serial_number || "-")}</td>
                         <td>${escapeHtml(device.device_type || "-")}</td>
-                        <td>${statusBadge(device.status, humanizeStatus(device.status))}</td>
-                        <td>${escapeHtml(device.current_assignment?.employee_detail?.full_name || "Unassigned")}</td>
+                        <td>${escapeHtml((device.current_assignments || []).map((assignment) => assignment.employee_name).join(", ") || "Unassigned")}</td>
                         <td class="text-end">
                             <div class="asse-card-action justify-content-end">
                                 ${actionButton("view-device", device.id, "feather-eye")}
-                                ${device.status === "available" ? actionButton("assign-device", device.id, "feather-arrow-right-circle") : ""}
+                                ${actionButton("assign-device", device.id, "feather-arrow-right-circle")}
+                                ${(device.current_assignments || []).some((assignment) => assignment.employee_id === state.currentUser?.employee?.id) ? actionButton("repair-device", device.id, "feather-tool") : ""}
                             </div>
                         </td>
                     </tr>
@@ -209,6 +226,8 @@ function renderDevices() {
               )
               .join("")
         : `<tr><td colspan="5" class="asse-empty-state">No devices found.</td></tr>`;
+
+    renderSimplePagination(elements.devicePagination, "device", state.devicePage, items.length, totalPages);
 }
 
 function renderRequests() {
@@ -274,6 +293,28 @@ function renderRequestPagination(totalItems, totalPages) {
             </ul>
         </nav>
     `;
+}
+
+function renderSimplePagination(element, key, currentPage, totalItems, totalPages) {
+    if (!element) return;
+
+    if (!totalItems) {
+        element.innerHTML = `<li><a href="javascript:void(0);" class="active">0 Records</a></li>`;
+        return;
+    }
+
+    if (totalPages <= 1) {
+        element.innerHTML = "";
+        return;
+    }
+
+    element.innerHTML = Array.from({ length: totalPages }, (_, index) => index + 1)
+        .map((page) => `
+            <li>
+                <a href="javascript:void(0);" data-${key}-page="${page}" class="${page === currentPage ? "active" : ""}">${page}</a>
+            </li>
+        `)
+        .join("");
 }
 
 function renderRequestDetail(requestId) {
@@ -426,6 +467,23 @@ function assignDeviceFormConfig(deviceId) {
     };
 }
 
+function repairRequestFormConfig(deviceId) {
+    return {
+        kind: "create-request",
+        recordId: deviceId,
+        title: "Submit Repair Request",
+        submitLabel: "Submit Request",
+        fields: [
+            `
+            <div class="col-12">
+                <label class="form-label asse-modal-label">Issue Description</label>
+                <textarea class="form-control" name="issue_description" rows="4" required placeholder="Describe the damage or issue."></textarea>
+            </div>
+            `,
+        ],
+    };
+}
+
 function requestActionFormConfig(request) {
     return {
         kind: "reject-request",
@@ -490,6 +548,16 @@ async function submitEntityForm(event) {
             });
         }
 
+        if (state.activeForm.kind === "create-request") {
+            await apiRequest("/requests/", {
+                method: "POST",
+                body: {
+                    device: state.activeForm.recordId,
+                    issue_description: formData.get("issue_description"),
+                },
+            });
+        }
+
         showAlert(elements.entityFormFeedback, "Saved successfully.", "success");
         await loadData();
         renderAll();
@@ -533,6 +601,7 @@ function bindActionDelegation() {
                 { label: "Email", value: employee.user?.email || "N/A" },
                 { label: "Position", value: employee.position || "N/A" },
                 { label: "Department", value: employee.department || "N/A" },
+                { label: "Assigned Devices", value: state.devices.filter((device) => (device.current_assignments || []).some((assignment) => assignment.employee_id === employee.id)).map((device) => device.display_name || device.name).join(", ") || "None" },
                 { label: "Status", value: employee.is_active ? "Active" : "Inactive" },
             ]);
         }
@@ -543,13 +612,17 @@ function bindActionDelegation() {
                 { label: "Device", value: device.name },
                 { label: "Serial Number", value: device.serial_number },
                 { label: "Type", value: device.device_type || "N/A" },
-                { label: "Branch", value: device.branch_detail?.name || "N/A" },
-                { label: "Status", value: humanizeStatus(device.status) },
+                { label: "Scope", value: device.assignment_scope || device.branch_detail?.name || "N/A" },
+                { label: "Assigned To", value: (device.current_assignments || []).map((assignment) => assignment.employee_name).join(", ") || "Unassigned" },
             ]);
         }
 
         if (action === "assign-device") {
             openFormModal(assignDeviceFormConfig(id));
+        }
+
+        if (action === "repair-device") {
+            openFormModal(repairRequestFormConfig(id));
         }
 
         if (action === "view-request") {
@@ -575,6 +648,12 @@ function wireSearch() {
         .filter(Boolean)
         .forEach((input) =>
             input.addEventListener("input", () => {
+                if (input === elements.employeeSearchInput) {
+                    state.employeePage = 1;
+                }
+                if (input === elements.deviceSearchInput) {
+                    state.devicePage = 1;
+                }
                 if (input === elements.requestSearchInput) {
                     state.requestPage = 1;
                 }
@@ -584,6 +663,22 @@ function wireSearch() {
 }
 
 function wirePagination() {
+    elements.employeePagination?.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-employee-page]");
+        if (!link) return;
+        event.preventDefault();
+        state.employeePage = Number(link.dataset.employeePage);
+        renderEmployees();
+    });
+
+    elements.devicePagination?.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-device-page]");
+        if (!link) return;
+        event.preventDefault();
+        state.devicePage = Number(link.dataset.devicePage);
+        renderDevices();
+    });
+
     elements.requestPagination?.addEventListener("click", (event) => {
         const link = event.target.closest("[data-request-page]");
         if (!link || link.classList.contains("disabled")) return;

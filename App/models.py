@@ -172,7 +172,7 @@ class Device(models.Model):
     purchase_date = models.DateField(null=True, blank=True)
     assign_to_all_branches = models.BooleanField(
         default=False,
-        help_text="If True, this device is available to all branches in the system.",
+        help_text="If True, this device is assigned to all branches and head office.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
