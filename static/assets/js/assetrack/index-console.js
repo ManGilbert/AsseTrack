@@ -26,7 +26,7 @@ function formatProjectRow(item) {
 
 async function loadDashboard() {
     const tableBody = document.getElementById("projectRemaindersTable");
-    if (!tableBody) {
+    if (!tableBody || tableBody.children.length) {
         return;
     }
 

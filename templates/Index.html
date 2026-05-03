@@ -23,11 +23,36 @@
     </div>
 
     <div class="main-content">
+        <div class="row g-4 mb-4">
+            {% if dashboard_cards %}
+                {% for card in dashboard_cards %}
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stretch stretch-full">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="fs-4 fw-bold text-dark">{{ card.count }}</div>
+                                    <p class="mb-0 text-muted">{{ card.label }}</p>
+                                </div>
+                                <div class="avatar-text avatar-lg bg-gray-200">
+                                    <i class="{{ card.icon }}"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">Sign in to see your personalized dashboard overview.</div>
+                </div>
+            {% endif %}
+        </div>
         <div class="row g-4">
             <div class="col-xxl-8">
                 <div class="card stretch stretch-full">
                     <div class="card-header">
-                        <h5 class="card-title">Project Remainders</h5>
+                        <h5 class="card-title">Recent Activity</h5>
                         <div class="card-header-action">
                             <div class="card-header-btn">
                                 <div data-bs-toggle="tooltip" title="Delete">
@@ -70,7 +95,23 @@
                                         <th scope="col" class="text-end">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody id="projectRemaindersTable"></tbody>
+                                <tbody id="projectRemaindersTable">
+                                    {% if dashboard_activity %}
+                                        {% for item in dashboard_activity %}
+                                        <tr>
+                                            <td>{{ item.name }}</td>
+                                            <td><span class="badge bg-gray-200 text-dark">{{ item.status }}</span></td>
+                                            <td>{{ item.note }}</td>
+                                            <td>{{ item.updated|date:"M d, Y" }}</td>
+                                            <td class="text-end"><span class="badge bg-gray-200 text-dark">View</span></td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-muted">No recent activity is available for your account.</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
                             </table>
                         </div>
                         <div class="card-footer">

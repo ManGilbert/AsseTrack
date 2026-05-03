@@ -814,6 +814,10 @@ def swagger_ui_view(request):
   </style>
 </head>
 <body>
+  <div style="padding: 16px; background: #fff7d9; border-bottom: 1px solid #e2d2a0; font-family: Arial, sans-serif;">
+    <strong>Demo login:</strong> admin@admin.com / Aa@2026123
+    <div style="font-size: 0.9rem; margin-top: 4px; color: #4d4d4d;">Use POST <code>/api/auth/login/</code> to obtain a Bearer token, then authorize protected endpoints through Swagger UI.</div>
+  </div>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
@@ -843,7 +847,88 @@ def swagger_ui_view(request):
 from django.shortcuts import render, redirect, get_object_or_404
 
 def index(request):
-    return render(request, "Index.html")
+    user = request.user
+    dashboard_cards = []
+    dashboard_activity = []
+
+    if user.is_authenticated:
+        unread_notifications = Notification.objects.filter(user=user, is_read=False).count()
+        pending_request_statuses = [
+            Request.Statuses.PENDING,
+            Request.Statuses.APPROVED_BY_BRANCH,
+            Request.Statuses.APPROVED_BY_HEAD_OFFICE,
+        ]
+
+        if AccessService.is_head_office_manager(user):
+            dashboard_cards = [
+                {"count": HeadOffice.objects.count(), "label": "Head Offices", "icon": "feather-home"},
+                {"count": Branch.objects.count(), "label": "Branches", "icon": "feather-git-branch"},
+                {"count": Device.objects.count(), "label": "Devices", "icon": "feather-monitor"},
+                {"count": Request.objects.filter(status__in=pending_request_statuses).count(), "label": "Open Requests", "icon": "feather-alert-circle"},
+                {"count": unread_notifications, "label": "Unread Notifications", "icon": "feather-bell"},
+            ]
+            recent_requests = (
+                Request.objects.select_related("employee__user", "employee__branch", "device")
+                .order_by("-created_at")[:5]
+            )
+            dashboard_activity = [
+                {
+                    "name": request_item.device.name if request_item.device else "Device Request",
+                    "details": request_item.employee.full_name if request_item.employee else "Unknown employee",
+                    "status": request_item.get_status_display(),
+                    "updated": request_item.created_at,
+                    "note": request_item.issue_description[:80] if request_item.issue_description else "",
+                }
+                for request_item in recent_requests
+            ]
+        elif AccessService.is_branch_manager(user):
+            branch = AccessService.manager_branch(user)
+            dashboard_cards = [
+                {"count": Device.objects.filter(Q(assign_to_all_branches=True) | Q(branch=branch)).count(), "label": "Active Devices", "icon": "feather-monitor"},
+                {"count": Request.objects.filter(employee__branch=branch, status__in=pending_request_statuses).count(), "label": "Open Requests", "icon": "feather-alert-circle"},
+                {"count": Employee.objects.filter(branch=branch).count(), "label": "Team Members", "icon": "feather-users"},
+                {"count": unread_notifications, "label": "Unread Notifications", "icon": "feather-bell"},
+            ]
+            recent_requests = (
+                Request.objects.select_related("employee__user", "employee__branch", "device")
+                .filter(employee__branch=branch)
+                .order_by("-created_at")[:5]
+            )
+            dashboard_activity = [
+                {
+                    "name": request_item.device.name if request_item.device else "Device Request",
+                    "details": request_item.employee.full_name if request_item.employee else "Unknown employee",
+                    "status": request_item.get_status_display(),
+                    "updated": request_item.created_at,
+                    "note": request_item.issue_description[:80] if request_item.issue_description else "",
+                }
+                for request_item in recent_requests
+            ]
+        elif AccessService.is_employee(user):
+            employee = AccessService.employee_for_user(user)
+            dashboard_cards = [
+                {"count": DeviceAssignment.objects.filter(employee=employee, returned_at__isnull=True).count(), "label": "Assigned Devices", "icon": "feather-layers"},
+                {"count": Request.objects.filter(employee=employee).exclude(status=Request.Statuses.RESOLVED).count(), "label": "Open Requests", "icon": "feather-alert-circle"},
+                {"count": Branch.objects.filter(manager=employee).count(), "label": "Branch Access", "icon": "feather-map-pin"},
+                {"count": unread_notifications, "label": "Unread Notifications", "icon": "feather-bell"},
+            ]
+            recent_requests = (
+                Request.objects.select_related("employee__user", "employee__branch", "device")
+                .filter(employee=employee)
+                .order_by("-created_at")[:5]
+            )
+            dashboard_activity = [
+                {
+                    "name": request_item.device.name if request_item.device else "Device Request",
+                    "details": request_item.get_status_display(),
+                    "status": request_item.get_status_display(),
+                    "updated": request_item.created_at,
+                    "note": request_item.issue_description[:80] if request_item.issue_description else "",
+                }
+                for request_item in recent_requests
+            ]
+
+    return render(request, "Index.html", {"dashboard_cards": dashboard_cards, "dashboard_activity": dashboard_activity})
 
 
 def login_page(request):

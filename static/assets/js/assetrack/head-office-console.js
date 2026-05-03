@@ -154,10 +154,17 @@ function getAvatar(index) {
 }
 
 function userCell({ title, subtitle, avatarIndex = 0 }) {
+    const initials = String(title || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((fragment) => fragment[0]?.toUpperCase())
+        .join("") || "#";
+
     return `
         <div class="d-flex align-items-center gap-3">
-            <div class="avatar-image">
-                <img src="${getAvatar(avatarIndex)}" alt="" class="img-fluid asse-table-avatar">
+            <div class="avatar-text bg-gray-200">
+                ${escapeHtml(initials)}
             </div>
             <div class="asse-user-meta">
                 <span class="meta-title">${escapeHtml(title)}</span>

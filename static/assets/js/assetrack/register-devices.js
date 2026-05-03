@@ -1,5 +1,3 @@
-import { apiRequest } from "./api.js";
-
 function displayMessage(elementId, message, isError = false) {
     const element = document.getElementById(elementId);
     if (!element) return;
@@ -52,4 +50,44 @@ document.addEventListener("DOMContentLoaded", () => {
     if (form) {
         form.addEventListener("submit", handleDeviceUpload);
     }
-});
+
+        const downloadButton = document.getElementById("downloadDeviceList");
+        if (downloadButton) {
+            downloadButton.addEventListener("click", downloadDeviceList);
+        }
+    });
+
+async function downloadDeviceList() {
+    displayMessage("registerDevicesSuccess", "", false);
+    displayMessage("registerDevicesError", "", false);
+
+    try {
+        const response = await fetch("/api/devices/report/", {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem("assetrack_access_token")}`,
+            },
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "Unable to download the device list.");
+        }
+
+        const blob = await response.blob();
+        const fileName = response.headers.get("content-disposition")?.match(/filename="?(.*)"?/)?.[1] || "device-list.csv";
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(url);
+
+        displayMessage("registerDevicesSuccess", "Device list downloaded successfully.");
+    } catch (error) {
+        displayMessage("registerDevicesError", error.message || String(error), true);
+        console.error(error);
+    }
+}

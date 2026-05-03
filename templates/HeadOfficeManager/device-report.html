@@ -31,6 +31,24 @@
                         <div class="alert alert-danger d-none" id="deviceReportError" role="alert"></div>
                         <p class="mb-3">Click below to create and download the latest device report.</p>
                         <button class="btn btn-primary" id="downloadDeviceReport">Download Device Report</button>
+                        <div class="table-responsive mt-4">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>Serial Number</th>
+                                        <th>Type</th>
+                                        <th>Branch / Scope</th>
+                                        <th>Brand / Model</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="deviceReportTableBody">
+                                    <tr>
+                                        <td colspan="5" class="text-muted">Loading preview...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
