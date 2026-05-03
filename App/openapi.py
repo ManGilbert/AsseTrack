@@ -33,15 +33,15 @@ def build_openapi_schema():
         "message": "Login successful as head_office_manager.",
         "user": {
             "id": 1,
-            "email": "claudine.mukamana@assetrack.rw",
+            "email": "admin@admin.com",
             "role": "head_office_manager",
             "is_active": True,
             "created_at": "2026-04-28T17:28:04.104173Z",
             "employee": {
                 "id": 1,
-                "full_name": "Claudine Mukamana",
+                "full_name": "Admin User",
                 "branch_id": None,
-                "position": "Chief Operations Officer",
+                "position": "Administrator",
             },
         },
         "access": "<jwt-access-token>",
@@ -58,7 +58,7 @@ def build_openapi_schema():
                 "tracking platform for head offices, branches, employees, devices, device "
                 "assignments, and repair/issue requests.\n\n"
                 "Authentication: send `Authorization: Bearer <access_token>` on protected endpoints.\n"
-                "Use POST `/api/auth/login/` with `admin@admin.com` / `Aa@2026123` to generate an access token for protected operations.\n\n"
+                "Use POST `/api/auth/login/` with `admin@admin.com` / `Aa@2026123` and role `head_office_manager` to generate an access token for protected operations.\n\n"
                 "Role-based flows:\n"
                 "1. Head Office Manager: create head offices, branches, employees, devices, approve final requests.\n"
                 "2. Branch Manager: manage only their branch employees, devices, assignments, and branch approvals.\n"
@@ -328,14 +328,14 @@ def build_openapi_schema():
             "requestBody": _request_body(
                 {"$ref": "#/components/schemas/RegisterRequest"},
                 {
-                    "email": "claudine.mukamana@assetrack.rw",
-                    "password": "StrongPass123!",
+                    "email": "admin@admin.com",
+                    "password": "Aa@2026123",
                     "role": "head_office_manager",
-                    "first_name": "Claudine",
-                    "last_name": "Mukamana",
+                    "first_name": "Admin",
+                    "last_name": "User",
                     "phone": "+250788100001",
-                    "position": "Chief Operations Officer",
-                    "department": "Operations",
+                    "position": "Administrator",
+                    "department": "IT",
                     "hire_date": "2021-03-12",
                 },
             ),
@@ -353,8 +353,8 @@ def build_openapi_schema():
             "requestBody": _request_body(
                 {"$ref": "#/components/schemas/LoginRequest"},
                 {
-                    "email": "claudine.mukamana@assetrack.rw",
-                    "password": "StrongPass123!",
+                    "email": "admin@admin.com",
+                    "password": "Aa@2026123",
                     "role": "head_office_manager",
                 },
             ),

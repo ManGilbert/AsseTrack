@@ -814,10 +814,6 @@ def swagger_ui_view(request):
   </style>
 </head>
 <body>
-  <div style="padding: 16px; background: #fff7d9; border-bottom: 1px solid #e2d2a0; font-family: Arial, sans-serif;">
-    <strong>Demo login:</strong> admin@admin.com / Aa@2026123
-    <div style="font-size: 0.9rem; margin-top: 4px; color: #4d4d4d;">Use POST <code>/api/auth/login/</code> to obtain a Bearer token, then authorize protected endpoints through Swagger UI.</div>
-  </div>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
