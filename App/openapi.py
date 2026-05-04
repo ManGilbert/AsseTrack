@@ -58,7 +58,7 @@ def build_openapi_schema():
                 "tracking platform for head offices, branches, employees, devices, device "
                 "assignments, and repair/issue requests.\n\n"
                 "Authentication: send `Authorization: Bearer <access_token>` on protected endpoints.\n"
-                "Use POST `/api/auth/login/` with `admin@admin.com` / `Aa@2026123` and role `head_office_manager` to generate an access token for protected operations.\n\n"
+                "Use POST `/api/auth/login/`.\n\n"
                 "Role-based flows:\n"
                 "1. Head Office Manager: create head offices, branches, employees, devices, approve final requests.\n"
                 "2. Branch Manager: manage only their branch employees, devices, assignments, and branch approvals.\n"
