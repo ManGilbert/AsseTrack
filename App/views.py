@@ -165,6 +165,53 @@ class AuthViewSet(viewsets.ViewSet):
             return Response(UserSerializer(request.user).data)
         return Response(UserSerializer(request.user).data)
 
+    @action(detail=False, methods=["get"])
+    def dashboard_stats(self, request):
+        """Return role-based dashboard statistics for chart visualization."""
+        user = request.user
+        stats = {"role": user.role, "data": {}}
+        
+        pending_statuses = [
+            Request.Statuses.PENDING,
+            Request.Statuses.APPROVED_BY_BRANCH,
+            Request.Statuses.APPROVED_BY_HEAD_OFFICE,
+        ]
+        
+        if AccessService.is_head_office_manager(user):
+            stats["data"] = {
+                "head_offices": HeadOffice.objects.count(),
+                "branches": Branch.objects.count(),
+                "devices": Device.objects.count(),
+                "managers": Employee.objects.filter(user__role=User.Roles.HEAD_OFFICE_MANAGER).count(),
+                "open_requests": Request.objects.filter(status__in=pending_statuses).count(),
+                "resolved_requests": Request.objects.filter(status=Request.Statuses.RESOLVED).count(),
+                "employees": Employee.objects.count(),
+            }
+        elif AccessService.is_branch_manager(user):
+            branch = AccessService.manager_branch(user)
+            if branch:
+                stats["data"] = {
+                    "devices": Device.objects.filter(Q(branch=branch) | Q(assign_to_all_branches=True)).count(),
+                    "employees": Employee.objects.filter(branch=branch).count(),
+                    "open_requests": Request.objects.filter(employee__branch=branch, status__in=pending_statuses).count(),
+                    "resolved_requests": Request.objects.filter(employee__branch=branch, status=Request.Statuses.RESOLVED).count(),
+                    "active_assignments": DeviceAssignment.objects.filter(branch=branch, returned_at__isnull=True).count(),
+                    "completed_assignments": DeviceAssignment.objects.filter(branch=branch, returned_at__isnull=False).count(),
+                }
+        elif AccessService.is_employee(user):
+            employee = AccessService.employee_for_user(user)
+            if employee:
+                stats["data"] = {
+                    "assigned_devices": DeviceAssignment.objects.filter(employee=employee, returned_at__isnull=True).count(),
+                    "returned_devices": DeviceAssignment.objects.filter(employee=employee, returned_at__isnull=False).count(),
+                    "open_requests": Request.objects.filter(employee=employee).exclude(status=Request.Statuses.RESOLVED).count(),
+                    "resolved_requests": Request.objects.filter(employee=employee, status=Request.Statuses.RESOLVED).count(),
+                    "pending_requests": Request.objects.filter(employee=employee, status=Request.Statuses.PENDING).count(),
+                    "approved_requests": Request.objects.filter(employee=employee, status__in=[Request.Statuses.APPROVED_BY_BRANCH, Request.Statuses.APPROVED_BY_HEAD_OFFICE]).count(),
+                }
+        
+        return Response(stats)
+
 class HeadOfficeViewSet(viewsets.ModelViewSet):
     serializer_class = HeadOfficeSerializer
     permission_classes = [IsHeadOfficeManager]

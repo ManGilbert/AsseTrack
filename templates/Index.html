@@ -123,7 +123,7 @@
             <div class="col-xxl-4">
                 <div class="card stretch stretch-full">
                     <div class="card-header">
-                        <h5 class="card-title">Social Statistics</h5>
+                        <h5 class="card-title">Dashboard Statistics</h5>
                         <div class="card-header-action">
                             <div class="card-header-btn">
                                 <div data-bs-toggle="tooltip" title="Delete">
@@ -155,9 +155,9 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <div id="social-radar-chart"></div>
+                        <div id="social-radar-chart" style="position: relative; height: 300px;"></div>
                     </div>
-                    <a href="javascript:void(0);" class="card-footer fs-11 fw-bold text-uppercase text-center">Explore Details</a>
+                    <a href="javascript:void(0);" class="card-footer fs-11 fw-bold text-uppercase text-center">View Detailed Report</a>
                 </div>
             </div>
         </div>
@@ -166,5 +166,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.js"></script>
 <script type="module" src="{% static 'assets/js/assetrack/index-console.js' %}"></script>
 {% endblock %}

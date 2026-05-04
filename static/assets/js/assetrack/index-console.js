@@ -1,69 +1,57 @@
 import { apiRequest } from "./api.js";
 
-function createPlaceholderRow() {
-    return `
-        <tr>
-            <td>No active project remainders found.</td>
-            <td>—</td>
-            <td>—</td>
-            <td>—</td>
-            <td class="text-end"><span class="badge bg-secondary">No data</span></td>
-        </tr>
-    `;
-}
+let dashboardChart = null;
 
-function formatProjectRow(item) {
-    return `
-        <tr>
-            <td>${item.name}</td>
-            <td><span class="badge bg-${item.status === 'Completed' ? 'success' : item.status === 'In Progress' ? 'warning' : 'secondary'}">${item.status}</span></td>
-            <td>${item.remaining_days ?? 'TBD'}</td>
-            <td>${item.stage ?? 'Planning'}</td>
-            <td class="text-end"><a href="javascript:void(0);" class="btn btn-sm btn-outline-primary">View</a></td>
-        </tr>
-    `;
+function initChart(stats) {
+    const ctx = document.getElementById("social-radar-chart");
+    if (!ctx) return;
+    
+    const chartData = Object.entries(stats.data).map(([key, value]) => ({
+        label: key.replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase()),
+        value
+    }));
+    
+    if (dashboardChart) {
+        dashboardChart.destroy();
+    }
+    
+    dashboardChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: chartData.map(d => d.label),
+            datasets: [{
+                label: 'Count',
+                data: chartData.map(d => d.value),
+                backgroundColor: [
+                    '#4F46E5', '#7C3AED', '#EC4899', '#F59E0B',
+                    '#10B981', '#3B82F6', '#8B5CF6', '#EF4444'
+                ],
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                title: {
+                    display: true,
+                    text: `${stats.role.replace(/_/g, " ").toUpperCase()} Dashboard`
+                }
+            }
+        }
+    });
 }
 
 async function loadDashboard() {
-    const tableBody = document.getElementById("projectRemaindersTable");
-    if (!tableBody || tableBody.children.length) {
-        return;
-    }
-
-    tableBody.innerHTML = createPlaceholderRow();
-
     try {
-        const user = await apiRequest("/auth/me/");
-
-        const placeholderItems = [
-            {
-                name: `Welcome back, ${user.employee?.full_name || user.email}`,
-                status: "Active",
-                remaining_days: 12,
-                stage: "Review",
-            },
-            {
-                name: "Device inventory audit",
-                status: "In Progress",
-                remaining_days: 8,
-                stage: "Approval",
-            },
-            {
-                name: "Branch performance review",
-                status: "Pending",
-                remaining_days: 3,
-                stage: "Scheduling",
-            },
-        ];
-
-        tableBody.innerHTML = placeholderItems.map(formatProjectRow).join("");
+        const stats = await apiRequest("/auth/dashboard-stats/");
+        initChart(stats);
     } catch (error) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="5" class="text-danger">Unable to load dashboard items.</td>
-            </tr>
-        `;
-        console.error(error);
+        console.error("Failed to load dashboard:", error);
     }
 }
 

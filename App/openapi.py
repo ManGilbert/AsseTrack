@@ -54,15 +54,15 @@ def build_openapi_schema():
             "title": "AsseTrack API",
             "version": "1.0.0",
             "description": (
-                "Interactive API documentation for AsseTrack, a Django REST Framework asset "
+                "Complete interactive API documentation for AsseTrack, a Django REST Framework asset "
                 "tracking platform for head offices, branches, employees, devices, device "
-                "assignments, and repair/issue requests.\n\n"
+                "assignments, repair/issue requests, and notifications.\n\n"
                 "Authentication: send `Authorization: Bearer <access_token>` on protected endpoints.\n"
                 "Use POST `/api/auth/login/`.\n\n"
                 "Role-based flows:\n"
-                "1. Head Office Manager: create head offices, branches, employees, devices, approve final requests.\n"
+                "1. Head Office Manager: create head offices, branches, employees, devices, approve final requests, bulk operations.\n"
                 "2. Branch Manager: manage only their branch employees, devices, assignments, and branch approvals.\n"
-                "3. Employee: view own profile, assigned devices, and create/view own requests."
+                "3. Employee: view own profile, assigned devices, create/view own requests, and notifications."
             ),
         },
         "servers": [{"url": "/"}],
@@ -74,6 +74,7 @@ def build_openapi_schema():
             {"name": "Devices", "description": "Device inventory management endpoints."},
             {"name": "Assignments", "description": "Device assignment and return workflow."},
             {"name": "Requests", "description": "Repair and issue request workflow endpoints."},
+            {"name": "Notifications", "description": "User notification management endpoints."},
         ],
         "components": {
             "securitySchemes": {
@@ -313,6 +314,54 @@ def build_openapi_schema():
                         "updated_at": {"type": "string", "format": "date-time"},
                     },
                 },
+                "DashboardStats": {
+                    "type": "object",
+                    "properties": {
+                        "role": {"type": "string", "enum": ["head_office_manager", "branch_manager", "employee"]},
+                        "data": {
+                            "type": "object",
+                            "description": "Role-specific statistics data",
+                            "properties": {
+                                "head_offices": {"type": "integer"},
+                                "branches": {"type": "integer"},
+                                "devices": {"type": "integer"},
+                                "managers": {"type": "integer"},
+                                "open_requests": {"type": "integer"},
+                                "resolved_requests": {"type": "integer"},
+                                "employees": {"type": "integer"},
+                                "assigned_devices": {"type": "integer"},
+                                "returned_devices": {"type": "integer"},
+                                "pending_requests": {"type": "integer"},
+                                "approved_requests": {"type": "integer"},
+                                "active_assignments": {"type": "integer"},
+                                "completed_assignments": {"type": "integer"},
+                            },
+                        },
+                    },
+                },
+                "BulkRegisterResponse": {
+                    "type": "object",
+                    "properties": {
+                        "created": {"type": "integer"},
+                        "skipped": {"type": "integer"},
+                        "errors": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+                "Notification": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "notification_type": {"type": "string"},
+                        "title": {"type": "string"},
+                        "message": {"type": "string"},
+                        "is_read": {"type": "boolean"},
+                        "device_detail": {"$ref": "#/components/schemas/Device"},
+                        "employee_detail": {"$ref": "#/components/schemas/Employee"},
+                        "request_detail": {"$ref": "#/components/schemas/RepairRequest"},
+                        "created_at": {"type": "string", "format": "date-time"},
+                        "read_at": {"type": "string", "format": "date-time", "nullable": True},
+                    },
+                },
             },
         },
         "paths": {},
@@ -388,6 +437,73 @@ def build_openapi_schema():
             "security": _bearer_security(),
             "responses": {
                 "200": _response("Current authenticated user.", {"$ref": "#/components/schemas/User"}),
+                "401": _response("Unauthorized."),
+            },
+        },
+        "patch": {
+            "tags": ["Auth"],
+            "summary": "Update current user",
+            "security": _bearer_security(),
+            "requestBody": _request_body(
+                {
+                    "type": "object",
+                    "properties": {
+                        "email": {"type": "string", "format": "email"},
+                        "is_active": {"type": "boolean"},
+                        "employee": {
+                            "type": "object",
+                            "properties": {
+                                "first_name": {"type": "string"},
+                                "last_name": {"type": "string"},
+                                "phone": {"type": "string"},
+                                "position": {"type": "string"},
+                                "department": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+                {
+                    "email": "updated@example.com",
+                    "employee": {
+                        "first_name": "Updated",
+                        "last_name": "Name",
+                        "phone": "+250788100002",
+                        "position": "Senior Developer",
+                        "department": "Engineering",
+                    },
+                },
+            ),
+            "responses": {
+                "200": _response("User updated.", {"$ref": "#/components/schemas/User"}),
+                "400": _response("Validation error."),
+                "401": _response("Unauthorized."),
+            },
+        },
+    }
+
+    paths["/api/auth/dashboard_stats/"] = {
+        "get": {
+            "tags": ["Auth"],
+            "summary": "Dashboard statistics",
+            "description": "Returns role-based dashboard statistics for visualization.",
+            "security": _bearer_security(),
+            "responses": {
+                "200": _response(
+                    "Dashboard statistics.",
+                    {"$ref": "#/components/schemas/DashboardStats"},
+                    {
+                        "role": "head_office_manager",
+                        "data": {
+                            "head_offices": 2,
+                            "branches": 5,
+                            "devices": 150,
+                            "managers": 3,
+                            "open_requests": 12,
+                            "resolved_requests": 45,
+                            "employees": 120,
+                        },
+                    },
+                ),
                 "401": _response("Unauthorized."),
             },
         }
@@ -635,6 +751,49 @@ def build_openapi_schema():
     }
     paths["/api/devices/{id}/"] = crud_detail("/api/devices/{id}/", "Devices", "Device")
 
+    paths["/api/devices/report/"] = {
+        "get": {
+            "tags": ["Devices"],
+            "summary": "Download device report",
+            "description": "Head office managers only. Downloads CSV report of all devices.",
+            "security": _bearer_security(),
+            "parameters": [
+                {"name": "branch", "in": "query", "schema": {"type": "integer"}},
+                {"name": "device_type", "in": "query", "schema": {"type": "string"}},
+            ],
+            "responses": {
+                "200": _response("CSV file download.", example="CSV content with device data"),
+                "403": _response("Only head office managers can access reports."),
+            },
+        }
+    }
+
+    paths["/api/devices/bulk_register/"] = {
+        "post": {
+            "tags": ["Devices"],
+            "summary": "Bulk register devices",
+            "description": "Head office managers only. Upload CSV or XLSX file to register multiple devices.",
+            "security": _bearer_security(),
+            "requestBody": _request_body(
+                {
+                    "type": "object",
+                    "properties": {
+                        "file": {
+                            "type": "string",
+                            "format": "binary",
+                            "description": "CSV or XLSX file with device data",
+                        },
+                    },
+                }
+            ),
+            "responses": {
+                "200": _response("Bulk registration results.", {"$ref": "#/components/schemas/BulkRegisterResponse"}),
+                "400": _response("Invalid file format or data."),
+                "403": _response("Only head office managers can bulk register devices."),
+            },
+        }
+    }
+
     paths["/api/assignments/"] = {
         "get": {
             "tags": ["Assignments"],
@@ -769,6 +928,63 @@ def build_openapi_schema():
                     "Request progress.",
                     example={"request_id": 1, "status": "approved_by_head_office", "progress_percentage": 70},
                 )
+            },
+        }
+    }
+
+    paths["/api/notifications/"] = {
+        "get": {
+            "tags": ["Notifications"],
+            "summary": "List user notifications",
+            "security": _bearer_security(),
+            "responses": {"200": _response("Paginated notifications.", example={"count": 10, "results": []})},
+        },
+    }
+    paths["/api/notifications/mark_all_as_read/"] = {
+        "post": {
+            "tags": ["Notifications"],
+            "summary": "Mark all notifications as read",
+            "security": _bearer_security(),
+            "responses": {
+                "200": _response("All notifications marked as read.", example={"detail": "All notifications marked as read."}),
+            },
+        },
+    }
+    paths["/api/notifications/{id}/"] = {
+        "get": {
+            "tags": ["Notifications"],
+            "summary": "Retrieve notification",
+            "security": _bearer_security(),
+            "responses": {"200": _response("Notification detail.", {"$ref": "#/components/schemas/Notification"})},
+        },
+        "delete": {
+            "tags": ["Notifications"],
+            "summary": "Delete notification",
+            "security": _bearer_security(),
+            "responses": {
+                "204": _response("Notification deleted."),
+                "403": _response("You can only delete your own notifications."),
+            },
+        },
+    }
+    paths["/api/notifications/{id}/mark_as_read/"] = {
+        "post": {
+            "tags": ["Notifications"],
+            "summary": "Mark notification as read",
+            "security": _bearer_security(),
+            "responses": {
+                "200": _response("Notification marked as read.", {"$ref": "#/components/schemas/Notification"}),
+                "403": _response("You can only update your own notifications."),
+            },
+        }
+    }
+    paths["/api/notifications/unread_count/"] = {
+        "get": {
+            "tags": ["Notifications"],
+            "summary": "Get unread notification count",
+            "security": _bearer_security(),
+            "responses": {
+                "200": _response("Unread count.", example={"unread_count": 5}),
             },
         }
     }
